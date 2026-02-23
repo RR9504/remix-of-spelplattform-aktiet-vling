@@ -7,8 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.1"
   }
@@ -18,27 +16,39 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string
+          description: string | null
           end_date: string
           id: string
           initial_balance: number
+          invite_code: string | null
+          is_public: boolean
+          max_teams: number | null
           name: string
           start_date: string
         }
         Insert: {
           created_at?: string
           created_by: string
+          description?: string | null
           end_date: string
           id?: string
           initial_balance?: number
+          invite_code?: string | null
+          is_public?: boolean
+          max_teams?: number | null
           name: string
           start_date: string
         }
         Update: {
           created_at?: string
           created_by?: string
+          description?: string | null
           end_date?: string
           id?: string
           initial_balance?: number
+          invite_code?: string | null
+          is_public?: boolean
+          max_teams?: number | null
           name?: string
           start_date?: string
         }
@@ -48,6 +58,45 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      competition_teams: {
+        Row: {
+          id: string
+          competition_id: string
+          team_id: string
+          cash_balance_sek: number
+          joined_at: string
+        }
+        Insert: {
+          id?: string
+          competition_id: string
+          team_id: string
+          cash_balance_sek: number
+          joined_at?: string
+        }
+        Update: {
+          id?: string
+          competition_id?: string
+          team_id?: string
+          cash_balance_sek?: number
+          joined_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competition_teams_competition_id_fkey"
+            columns: ["competition_id"]
+            isOneToOne: false
+            referencedRelation: "competitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "competition_teams_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
             referencedColumns: ["id"]
           },
         ]
@@ -154,11 +203,186 @@ export type Database = {
           },
         ]
       }
+      trades: {
+        Row: {
+          id: string
+          competition_id: string
+          team_id: string
+          executed_by: string
+          ticker: string
+          stock_name: string
+          side: "buy" | "sell"
+          shares: number
+          price_per_share: number
+          currency: string
+          exchange_rate: number
+          total_sek: number
+          executed_at: string
+        }
+        Insert: {
+          id?: string
+          competition_id: string
+          team_id: string
+          executed_by: string
+          ticker: string
+          stock_name: string
+          side: "buy" | "sell"
+          shares: number
+          price_per_share: number
+          currency?: string
+          exchange_rate?: number
+          total_sek: number
+          executed_at?: string
+        }
+        Update: {
+          id?: string
+          competition_id?: string
+          team_id?: string
+          executed_by?: string
+          ticker?: string
+          stock_name?: string
+          side?: "buy" | "sell"
+          shares?: number
+          price_per_share?: number
+          currency?: string
+          exchange_rate?: number
+          total_sek?: number
+          executed_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trades_competition_id_fkey"
+            columns: ["competition_id"]
+            isOneToOne: false
+            referencedRelation: "competitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trades_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trades_executed_by_fkey"
+            columns: ["executed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      portfolio_snapshots: {
+        Row: {
+          id: string
+          competition_id: string
+          team_id: string
+          snapshot_date: string
+          total_value_sek: number
+          cash_sek: number
+          holdings_value_sek: number
+        }
+        Insert: {
+          id?: string
+          competition_id: string
+          team_id: string
+          snapshot_date: string
+          total_value_sek: number
+          cash_sek: number
+          holdings_value_sek: number
+        }
+        Update: {
+          id?: string
+          competition_id?: string
+          team_id?: string
+          snapshot_date?: string
+          total_value_sek?: number
+          cash_sek?: number
+          holdings_value_sek?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "portfolio_snapshots_competition_id_fkey"
+            columns: ["competition_id"]
+            isOneToOne: false
+            referencedRelation: "competitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "portfolio_snapshots_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stock_price_cache: {
+        Row: {
+          ticker: string
+          price: number
+          currency: string
+          exchange_rate: number
+          price_sek: number
+          stock_name: string | null
+          exchange: string | null
+          updated_at: string
+        }
+        Insert: {
+          ticker: string
+          price: number
+          currency?: string
+          exchange_rate?: number
+          price_sek: number
+          stock_name?: string | null
+          exchange?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ticker?: string
+          price?: number
+          currency?: string
+          exchange_rate?: number
+          price_sek?: number
+          stock_name?: string | null
+          exchange?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
-      [_ in never]: never
+      team_holdings: {
+        Row: {
+          team_id: string
+          competition_id: string
+          ticker: string
+          stock_name: string
+          currency: string
+          total_shares: number
+          avg_cost_per_share_sek: number
+        }
+        Relationships: []
+      }
     }
     Functions: {
+      execute_trade: {
+        Args: {
+          _competition_id: string
+          _team_id: string
+          _executed_by: string
+          _ticker: string
+          _stock_name: string
+          _side: string
+          _shares: number
+          _price_per_share: number
+          _currency: string
+          _exchange_rate: number
+          _total_sek: number
+        }
+        Returns: Json
+      }
       is_competition_creator: {
         Args: { _competition_id: string }
         Returns: boolean
@@ -167,7 +391,7 @@ export type Database = {
       is_team_member: { Args: { _team_id: string }; Returns: boolean }
     }
     Enums: {
-      [_ in never]: never
+      trade_side: "buy" | "sell"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -294,6 +518,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      trade_side: ["buy", "sell"] as const,
+    },
   },
 } as const

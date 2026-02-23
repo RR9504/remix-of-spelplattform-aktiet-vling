@@ -2,18 +2,22 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCompetition } from "@/contexts/CompetitionContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { TrendingUp, Trophy, Users, UserPlus, ArrowLeft, ArrowRight, Copy, Check } from "lucide-react";
+import { TrendingUp, Trophy, Users, UserPlus, ArrowLeft, ArrowRight, Copy, Check, Ticket } from "lucide-react";
 import { toast } from "sonner";
 
-type Path = "choose" | "competition" | "create-team" | "join-team";
+type Path = "choose" | "competition" | "create-team" | "join-team" | "join-competition";
 
 export default function Onboarding() {
   const { user } = useAuth();
+  const { refresh } = useCompetition();
   const navigate = useNavigate();
   const [path, setPath] = useState<Path>("choose");
 
@@ -22,15 +26,22 @@ export default function Onboarding() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [balance, setBalance] = useState("1000000");
+  const [isPublic, setIsPublic] = useState(false);
+  const [description, setDescription] = useState("");
+  const [maxTeams, setMaxTeams] = useState("");
 
   // Team form
   const [teamName, setTeamName] = useState("");
-  const [competitionId, setCompetitionId] = useState("");
 
-  // Join form
+  // Join team form
   const [inviteCode, setInviteCode] = useState("");
 
+  // Join competition form
+  const [competitionCode, setCompetitionCode] = useState("");
+
   const [loading, setLoading] = useState(false);
+  const [createdInviteCode, setCreatedInviteCode] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const progress = path === "choose" ? 33 : 66;
 
@@ -39,19 +50,33 @@ export default function Onboarding() {
     if (!user) return;
     setLoading(true);
 
-    const { error } = await supabase.from("competitions").insert({
-      name: compName,
-      start_date: startDate,
-      end_date: endDate,
-      initial_balance: Number(balance),
-      created_by: user.id,
-    });
+    const { data, error } = await supabase
+      .from("competitions")
+      .insert({
+        name: compName,
+        start_date: startDate,
+        end_date: endDate,
+        initial_balance: Number(balance),
+        created_by: user.id,
+        is_public: isPublic,
+        description: description || null,
+        max_teams: maxTeams ? Number(maxTeams) : null,
+      } as any)
+      .select()
+      .single();
 
     if (error) {
       toast.error("Kunde inte skapa tävlingen: " + error.message);
     } else {
-      toast.success("Tävling skapad!");
-      navigate("/");
+      const compData = data as any;
+      if (!isPublic && compData?.invite_code) {
+        setCreatedInviteCode(compData.invite_code);
+        toast.success("Tävling skapad! Dela inbjudningskoden.");
+      } else {
+        toast.success("Tävling skapad!");
+        await refresh();
+        navigate("/");
+      }
     }
     setLoading(false);
   };
@@ -66,7 +91,6 @@ export default function Onboarding() {
       .insert({
         name: teamName,
         captain_id: user.id,
-        competition_id: competitionId || null,
       })
       .select()
       .single();
@@ -74,12 +98,12 @@ export default function Onboarding() {
     if (error) {
       toast.error("Kunde inte skapa laget: " + error.message);
     } else {
-      // Also add captain as team member
       await supabase.from("team_members").insert({
         team_id: data.id,
         profile_id: user.id,
       });
       toast.success("Lag skapat!");
+      await refresh();
       navigate("/team/" + data.id);
     }
     setLoading(false);
@@ -90,7 +114,6 @@ export default function Onboarding() {
     if (!user) return;
     setLoading(true);
 
-    // Find team by invite code
     const { data: team, error: findError } = await supabase
       .from("teams")
       .select("id, name")
@@ -116,9 +139,74 @@ export default function Onboarding() {
       }
     } else {
       toast.success(`Du gick med i ${team.name}!`);
+      await refresh();
       navigate("/team/" + team.id);
     }
     setLoading(false);
+  };
+
+  const handleJoinCompetition = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    setLoading(true);
+
+    // Find competition by invite code
+    const { data: comp, error: findError } = await supabase
+      .from("competitions")
+      .select("id, name, initial_balance")
+      .eq("invite_code", competitionCode.trim())
+      .single();
+
+    if (findError || !comp) {
+      toast.error("Ingen tävling hittades med den koden.");
+      setLoading(false);
+      return;
+    }
+
+    // Get user's teams
+    const { data: memberRows } = await supabase
+      .from("team_members")
+      .select("team_id")
+      .eq("profile_id", user.id);
+
+    const teamIds = (memberRows || []).map((r) => r.team_id);
+
+    if (teamIds.length === 0) {
+      toast.error("Du behöver ha ett lag först. Skapa eller gå med i ett lag.");
+      setLoading(false);
+      return;
+    }
+
+    // Auto-join with first team for simplicity
+    const teamId = teamIds[0];
+    const compData = comp as any;
+    const { error } = await supabase.from("competition_teams").insert({
+      competition_id: compData.id,
+      team_id: teamId,
+      cash_balance_sek: compData.initial_balance,
+    });
+
+    if (error) {
+      if (error.message.includes("duplicate")) {
+        toast.error("Ditt lag är redan med i denna tävling.");
+      } else {
+        toast.error("Kunde inte gå med: " + error.message);
+      }
+    } else {
+      toast.success(`Gick med i ${compData.name}!`);
+      await refresh();
+      navigate("/");
+    }
+    setLoading(false);
+  };
+
+  const copyCode = () => {
+    if (createdInviteCode) {
+      navigator.clipboard.writeText(createdInviteCode);
+      setCopied(true);
+      toast.success("Kopierad!");
+      setTimeout(() => setCopied(false), 2000);
+    }
   };
 
   return (
@@ -176,14 +264,29 @@ export default function Onboarding() {
                 </div>
                 <div>
                   <CardTitle className="text-lg">Gå med i ett lag</CardTitle>
-                  <CardDescription>Använd en inbjudningskod</CardDescription>
+                  <CardDescription>Använd en inbjudningskod för lag</CardDescription>
+                </div>
+              </CardHeader>
+            </Card>
+
+            <Card
+              className="cursor-pointer hover:border-primary transition-colors"
+              onClick={() => setPath("join-competition")}
+            >
+              <CardHeader className="flex flex-row items-center gap-4 pb-2">
+                <div className="rounded-lg bg-primary/10 p-3">
+                  <Ticket className="h-6 w-6 text-primary" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg">Har du en tävlingskod?</CardTitle>
+                  <CardDescription>Gå med i en privat tävling</CardDescription>
                 </div>
               </CardHeader>
             </Card>
           </div>
         )}
 
-        {path === "competition" && (
+        {path === "competition" && !createdInviteCode && (
           <Card>
             <CardHeader>
               <CardTitle>Starta en ny tävling</CardTitle>
@@ -194,7 +297,7 @@ export default function Onboarding() {
                 <div className="space-y-2">
                   <Label>Tävlingsnamn</Label>
                   <Input
-                    placeholder="Vår-tävlingen 2024"
+                    placeholder="Vår-tävlingen 2026"
                     value={compName}
                     onChange={(e) => setCompName(e.target.value)}
                     required
@@ -229,6 +332,36 @@ export default function Onboarding() {
                     required
                   />
                 </div>
+
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div>
+                    <Label>Offentlig tävling</Label>
+                    <p className="text-xs text-muted-foreground">Alla kan hitta och gå med</p>
+                  </div>
+                  <Switch checked={isPublic} onCheckedChange={setIsPublic} />
+                </div>
+
+                {isPublic && (
+                  <div className="space-y-2">
+                    <Label>Beskrivning (visas för alla)</Label>
+                    <Textarea
+                      placeholder="Beskriv din tävling..."
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                    />
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <Label>Max antal lag (valfritt)</Label>
+                  <Input
+                    type="number"
+                    placeholder="Obegränsat"
+                    value={maxTeams}
+                    onChange={(e) => setMaxTeams(e.target.value)}
+                  />
+                </div>
+
                 <div className="flex gap-2">
                   <Button type="button" variant="outline" onClick={() => setPath("choose")}>
                     <ArrowLeft className="h-4 w-4 mr-1" /> Tillbaka
@@ -238,6 +371,28 @@ export default function Onboarding() {
                   </Button>
                 </div>
               </form>
+            </CardContent>
+          </Card>
+        )}
+
+        {path === "competition" && createdInviteCode && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Tävling skapad!</CardTitle>
+              <CardDescription>Dela denna kod med de som ska gå med</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center gap-3">
+                <code className="flex-1 rounded-lg bg-muted px-4 py-3 font-mono text-lg tracking-widest text-center">
+                  {createdInviteCode}
+                </code>
+                <Button variant="outline" size="icon" onClick={copyCode}>
+                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              </div>
+              <Button className="w-full" onClick={async () => { await refresh(); navigate("/"); }}>
+                Gå till Dashboard
+              </Button>
             </CardContent>
           </Card>
         )}
@@ -281,7 +436,7 @@ export default function Onboarding() {
             <CardContent>
               <form onSubmit={handleJoinTeam} className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Inbjudningskod</Label>
+                  <Label>Laginbjudningskod</Label>
                   <Input
                     placeholder="abc12345"
                     value={inviteCode}
@@ -295,6 +450,36 @@ export default function Onboarding() {
                   </Button>
                   <Button type="submit" className="flex-1" disabled={loading}>
                     {loading ? "Söker..." : "Gå med"} <ArrowRight className="h-4 w-4 ml-1" />
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        )}
+
+        {path === "join-competition" && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Gå med i en privat tävling</CardTitle>
+              <CardDescription>Skriv in tävlingskoden du fått</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleJoinCompetition} className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Tävlingskod</Label>
+                  <Input
+                    placeholder="abc12345"
+                    value={competitionCode}
+                    onChange={(e) => setCompetitionCode(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button type="button" variant="outline" onClick={() => setPath("choose")}>
+                    <ArrowLeft className="h-4 w-4 mr-1" /> Tillbaka
+                  </Button>
+                  <Button type="submit" className="flex-1" disabled={loading}>
+                    {loading ? "Söker..." : "Gå med i tävling"} <ArrowRight className="h-4 w-4 ml-1" />
                   </Button>
                 </div>
               </form>

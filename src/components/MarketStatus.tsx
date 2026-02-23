@@ -19,11 +19,14 @@ function StatusBadge({ label, open, hours, flag }: { label: string; open: boolea
       <div>
         <p className="text-sm font-medium">{label}</p>
         <div className="flex items-center gap-1.5">
-          <span className={`h-2 w-2 rounded-full ${open ? 'bg-gain animate-pulse-glow' : 'bg-loss'}`} />
+          <span className={`h-2 w-2 rounded-full ${open ? 'bg-gain animate-pulse-glow' : 'bg-muted-foreground/50'}`} />
           <span className="text-xs text-muted-foreground">
             {open ? 'Öppen' : 'Stängd'} · {hours}
           </span>
         </div>
+        {!open && (
+          <p className="text-[10px] text-muted-foreground">Handel sker till senaste kurs</p>
+        )}
       </div>
     </div>
   );

@@ -1,59 +1,90 @@
-import { useState } from "react";
-import { Search } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Search, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { mockStocks, formatPrice, type Stock } from "@/lib/mockData";
+import { searchStocks, fetchStockPrice } from "@/lib/api";
+import type { StockSearchResult, StockPrice } from "@/types/trading";
 import { TradeDialog } from "./TradeDialog";
 
 export function StockSearch() {
   const [query, setQuery] = useState("");
-  const [selectedStock, setSelectedStock] = useState<Stock | null>(null);
+  const [results, setResults] = useState<StockSearchResult[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedStock, setSelectedStock] = useState<(StockSearchResult & { priceData?: StockPrice }) | null>(null);
+  const [fetchingPrice, setFetchingPrice] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
-  const filtered = query.length > 0
-    ? mockStocks.filter(s =>
-        s.ticker.toLowerCase().includes(query.toLowerCase()) ||
-        s.name.toLowerCase().includes(query.toLowerCase())
-      )
-    : mockStocks;
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    if (query.length < 1) {
+      setResults([]);
+      return;
+    }
+
+    setLoading(true);
+    debounceRef.current = setTimeout(async () => {
+      const data = await searchStocks(query);
+      setResults(data);
+      setLoading(false);
+    }, 300);
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [query]);
+
+  const handleSelect = async (stock: StockSearchResult) => {
+    setFetchingPrice(true);
+    const priceData = await fetchStockPrice(stock.ticker);
+    setSelectedStock({ ...stock, priceData: priceData ?? undefined });
+    setFetchingPrice(false);
+  };
 
   return (
     <div className="space-y-4">
       <div className="relative">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
-          placeholder="Sök aktie (ticker eller namn)..."
+          placeholder="Sök aktie (t.ex. VOLV-B.ST, AAPL, Tesla)..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           className="pl-10 bg-card"
         />
+        {(loading || fetchingPrice) && (
+          <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+        )}
       </div>
       <div className="grid gap-2">
-        {filtered.map((stock) => {
-          const isPositive = stock.change >= 0;
-          return (
-            <button
-              key={stock.ticker}
-              onClick={() => setSelectedStock(stock)}
-              className="flex items-center justify-between rounded-lg border bg-card p-4 text-left transition-colors hover:bg-muted"
-            >
-              <div className="flex items-center gap-3">
-                <span className="text-lg">{stock.market === 'SE' ? '🇸🇪' : '🇺🇸'}</span>
-                <div>
-                  <p className="font-mono font-semibold text-sm">{stock.ticker}</p>
-                  <p className="text-xs text-muted-foreground">{stock.name}</p>
-                </div>
+        {!loading && query.length > 0 && results.length === 0 && (
+          <p className="text-sm text-muted-foreground text-center py-4">Inga resultat hittades</p>
+        )}
+        {results.map((stock) => (
+          <button
+            key={stock.ticker}
+            onClick={() => handleSelect(stock)}
+            disabled={fetchingPrice}
+            className="flex items-center justify-between rounded-lg border bg-card p-4 text-left transition-colors hover:bg-muted disabled:opacity-50"
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-lg">{stock.exchange?.includes("Stockholm") || stock.ticker.endsWith(".ST") ? "🇸🇪" : "🇺🇸"}</span>
+              <div>
+                <p className="font-mono font-semibold text-sm">{stock.ticker}</p>
+                <p className="text-xs text-muted-foreground">{stock.name}</p>
               </div>
-              <div className="text-right">
-                <p className="font-mono text-sm font-medium">{formatPrice(stock.price, stock.currency)}</p>
-                <p className={`text-xs font-mono font-medium ${isPositive ? 'text-gain' : 'text-loss'}`}>
-                  {isPositive ? '+' : ''}{stock.changePercent.toFixed(2)}%
-                </p>
-              </div>
-            </button>
-          );
-        })}
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-muted-foreground">{stock.exchange}</p>
+              <p className="text-xs text-muted-foreground">{stock.currency}</p>
+            </div>
+          </button>
+        ))}
       </div>
       {selectedStock && (
-        <TradeDialog stock={selectedStock} onClose={() => setSelectedStock(null)} />
+        <TradeDialog
+          stock={selectedStock}
+          priceData={selectedStock.priceData ?? null}
+          onClose={() => setSelectedStock(null)}
+        />
       )}
     </div>
   );
