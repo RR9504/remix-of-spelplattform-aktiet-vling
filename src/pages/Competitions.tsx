@@ -2,12 +2,19 @@ import { useEffect, useState } from "react";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Search, Users, Calendar, Loader2 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Search, Users, Calendar, Loader2, Plus, Copy, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { useCompetition } from "@/contexts/CompetitionContext";
 import { formatSEK } from "@/lib/mockData";
 import { JoinCompetitionDialog } from "@/components/JoinCompetitionDialog";
+import { toast } from "sonner";
 
 interface Competition {
   id: string;
@@ -18,17 +25,33 @@ interface Competition {
   initial_balance: number;
   max_teams: number | null;
   is_public: boolean;
+  invite_code?: string;
   team_count?: number;
 }
 
 type Filter = "upcoming" | "active" | "ended" | "all";
 
 export default function Competitions() {
+  const { user } = useAuth();
+  const { refresh } = useCompetition();
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [joining, setJoining] = useState<Competition | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+
+  // Create form
+  const [compName, setCompName] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [balance, setBalance] = useState("1000000");
+  const [isPublic, setIsPublic] = useState(false);
+  const [description, setDescription] = useState("");
+  const [maxTeams, setMaxTeams] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [createdCode, setCreatedCode] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     fetchCompetitions();
@@ -43,7 +66,6 @@ export default function Competitions() {
       .order("start_date", { ascending: false });
 
     if (!error && data) {
-      // Get team counts for each competition
       const comps = data as unknown as Competition[];
       for (const comp of comps) {
         const { count } = await supabase
@@ -55,6 +77,64 @@ export default function Competitions() {
       setCompetitions(comps);
     }
     setLoading(false);
+  };
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    setCreating(true);
+
+    const { data, error } = await supabase
+      .from("competitions")
+      .insert({
+        name: compName,
+        start_date: startDate,
+        end_date: endDate,
+        initial_balance: Number(balance),
+        created_by: user.id,
+        is_public: isPublic,
+        description: description || null,
+        max_teams: maxTeams ? Number(maxTeams) : null,
+      } as any)
+      .select()
+      .single();
+
+    if (error) {
+      toast.error("Kunde inte skapa tävlingen: " + error.message);
+    } else {
+      const compData = data as any;
+      if (!isPublic && compData?.invite_code) {
+        setCreatedCode(compData.invite_code);
+        toast.success("Tävling skapad!");
+      } else {
+        toast.success("Tävling skapad!");
+        resetForm();
+        setShowCreate(false);
+        await refresh();
+        fetchCompetitions();
+      }
+    }
+    setCreating(false);
+  };
+
+  const resetForm = () => {
+    setCompName("");
+    setStartDate("");
+    setEndDate("");
+    setBalance("1000000");
+    setIsPublic(false);
+    setDescription("");
+    setMaxTeams("");
+    setCreatedCode(null);
+  };
+
+  const copyCode = () => {
+    if (createdCode) {
+      navigator.clipboard.writeText(createdCode);
+      setCopied(true);
+      toast.success("Kopierad!");
+      setTimeout(() => setCopied(false), 2000);
+    }
   };
 
   const today = new Date().toISOString().split("T")[0];
@@ -75,9 +155,14 @@ export default function Competitions() {
     <div className="min-h-screen bg-background">
       <Navbar />
       <main className="container py-6 space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold">Tävlingar</h1>
-          <p className="text-muted-foreground text-sm">Hitta och gå med i offentliga tävlingar</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">Tävlingar</h1>
+            <p className="text-muted-foreground text-sm">Hitta, skapa och gå med i tävlingar</p>
+          </div>
+          <Button onClick={() => { resetForm(); setShowCreate(true); }}>
+            <Plus className="h-4 w-4 mr-2" /> Skapa tävling
+          </Button>
         </div>
 
         <div className="flex flex-col sm:flex-row gap-4">
@@ -110,7 +195,8 @@ export default function Competitions() {
           </div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
-            <p>Inga tävlingar hittades.</p>
+            <p>Inga offentliga tävlingar hittades.</p>
+            <p className="text-sm mt-1">Skapa en ny eller gå med via tävlingskod i "Kom igång".</p>
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -183,6 +269,112 @@ export default function Competitions() {
           }}
         />
       )}
+
+      <Dialog open={showCreate} onOpenChange={(open) => { if (!open) { resetForm(); setShowCreate(false); } }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{createdCode ? "Tävling skapad!" : "Skapa ny tävling"}</DialogTitle>
+          </DialogHeader>
+
+          {createdCode ? (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Din privata tävling är skapad. Dela koden med de som ska gå med:
+              </p>
+              <div className="flex items-center gap-3">
+                <code className="flex-1 rounded-lg bg-muted px-4 py-3 font-mono text-lg tracking-widest text-center">
+                  {createdCode}
+                </code>
+                <Button variant="outline" size="icon" onClick={copyCode}>
+                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              </div>
+              <Button
+                className="w-full"
+                onClick={async () => {
+                  resetForm();
+                  setShowCreate(false);
+                  await refresh();
+                  fetchCompetitions();
+                }}
+              >
+                Klar
+              </Button>
+            </div>
+          ) : (
+            <form onSubmit={handleCreate} className="space-y-4">
+              <div className="space-y-2">
+                <Label>Tävlingsnamn</Label>
+                <Input
+                  placeholder="Vår-tävlingen 2026"
+                  value={compName}
+                  onChange={(e) => setCompName(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Startdatum</Label>
+                  <Input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Slutdatum</Label>
+                  <Input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Startkapital (SEK)</Label>
+                <Input
+                  type="number"
+                  value={balance}
+                  onChange={(e) => setBalance(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <div>
+                  <Label>Offentlig tävling</Label>
+                  <p className="text-xs text-muted-foreground">Alla kan hitta och gå med</p>
+                </div>
+                <Switch checked={isPublic} onCheckedChange={setIsPublic} />
+              </div>
+              {isPublic && (
+                <div className="space-y-2">
+                  <Label>Beskrivning</Label>
+                  <Textarea
+                    placeholder="Beskriv din tävling..."
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                  />
+                </div>
+              )}
+              <div className="space-y-2">
+                <Label>Max antal lag (valfritt)</Label>
+                <Input
+                  type="number"
+                  placeholder="Obegränsat"
+                  value={maxTeams}
+                  onChange={(e) => setMaxTeams(e.target.value)}
+                />
+              </div>
+              <Button type="submit" className="w-full" disabled={creating}>
+                {creating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                {creating ? "Skapar..." : "Skapa tävling"}
+              </Button>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
