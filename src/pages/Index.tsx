@@ -31,6 +31,14 @@ const Index = () => {
       setPortfolio(data);
       setLoading(false);
     });
+
+    // Auto-refresh portfolio every 60 seconds
+    const interval = setInterval(() => {
+      getPortfolio(activeCompetition.id, activeTeam.id).then((data) => {
+        if (data) setPortfolio(data);
+      });
+    }, 60_000);
+    return () => clearInterval(interval);
   }, [activeCompetition?.id, activeTeam?.id]);
 
   if (ctxLoading) {

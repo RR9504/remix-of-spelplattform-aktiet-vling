@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Search, Users, Calendar, Loader2, Plus, Copy, Check } from "lucide-react";
+import { Search, Users, Calendar, Loader2, Plus, Copy, Check, Link } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompetition } from "@/contexts/CompetitionContext";
@@ -52,9 +52,12 @@ export default function Competitions() {
   const [creating, setCreating] = useState(false);
   const [createdCode, setCreatedCode] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [myCompetitions, setMyCompetitions] = useState<(Competition & { role: string })[]>([]);
+  const [copiedCompCode, setCopiedCompCode] = useState<string | null>(null);
 
   useEffect(() => {
     fetchCompetitions();
+    fetchMyCompetitions();
   }, []);
 
   const fetchCompetitions = async () => {
@@ -77,6 +80,55 @@ export default function Competitions() {
       setCompetitions(comps);
     }
     setLoading(false);
+  };
+
+  const fetchMyCompetitions = async () => {
+    if (!user) return;
+    // Get teams user is in
+    const { data: memberships } = await supabase
+      .from("team_members")
+      .select("team_id")
+      .eq("profile_id", user.id);
+    if (!memberships || memberships.length === 0) return;
+
+    const teamIds = memberships.map((m) => m.team_id);
+    // Get competitions these teams are in
+    const { data: compTeams } = await supabase
+      .from("competition_teams")
+      .select("competition_id, team_id")
+      .in("team_id", teamIds);
+    if (!compTeams || compTeams.length === 0) return;
+
+    const compIds = [...new Set(compTeams.map((ct) => ct.competition_id))];
+    const { data: comps } = await supabase
+      .from("competitions")
+      .select("id, name, description, start_date, end_date, initial_balance, max_teams, is_public, invite_code, created_by")
+      .in("id", compIds)
+      .order("start_date", { ascending: false });
+
+    if (comps) {
+      setMyCompetitions(
+        (comps as any[]).map((c) => ({
+          ...c,
+          role: c.created_by === user.id ? "skapare" : "deltagare",
+        }))
+      );
+    }
+  };
+
+  const copyCompCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    setCopiedCompCode(code);
+    toast.success("Kod kopierad!");
+    setTimeout(() => setCopiedCompCode(null), 2000);
+  };
+
+  const copyCompLink = (code: string) => {
+    const link = `${window.location.origin}/join/competition/${code}`;
+    navigator.clipboard.writeText(link);
+    setCopiedCompCode(code + "-link");
+    toast.success("Länk kopierad!");
+    setTimeout(() => setCopiedCompCode(null), 2000);
   };
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -189,6 +241,74 @@ export default function Competitions() {
           </div>
         </div>
 
+        {myCompetitions.length > 0 && (
+          <div className="space-y-3">
+            <h2 className="text-lg font-semibold">Mina tävlingar</h2>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {myCompetitions.map((comp) => {
+                const status = getStatus(comp);
+                return (
+                  <Card key={comp.id} className="border-primary/20">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-base">{comp.name}</CardTitle>
+                        <div className="flex gap-1">
+                          {!comp.is_public && (
+                            <Badge variant="outline" className="text-[10px]">Privat</Badge>
+                          )}
+                          <Badge
+                            variant={status === "active" ? "default" : "outline"}
+                            className={
+                              status === "active"
+                                ? "bg-gain/20 text-gain border-gain/30 text-[10px]"
+                                : "text-[10px]"
+                            }
+                          >
+                            {status === "active" ? "Aktiv" : status === "upcoming" ? "Kommande" : "Avslutad"}
+                          </Badge>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="text-xs text-muted-foreground">
+                        {comp.start_date} – {comp.end_date} · {formatSEK(comp.initial_balance)}
+                      </div>
+                      {comp.invite_code && (
+                        <div className="space-y-1">
+                          <p className="text-xs text-muted-foreground">Inbjudningskod:</p>
+                          <div className="flex items-center gap-2">
+                            <code className="flex-1 rounded bg-muted px-3 py-1.5 font-mono text-sm tracking-widest text-center">
+                              {comp.invite_code}
+                            </code>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => copyCompCode(comp.invite_code!)}
+                            >
+                              {copiedCompCode === comp.invite_code ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => copyCompLink(comp.invite_code!)}
+                              title="Kopiera inbjudningslänk"
+                            >
+                              {copiedCompCode === comp.invite_code + "-link" ? <Check className="h-3 w-3" /> : <Link className="h-3 w-3" />}
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <h2 className="text-lg font-semibold">Offentliga tävlingar</h2>
         {loading ? (
           <div className="flex justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />

@@ -114,12 +114,11 @@ export default function TeamPage() {
           </div>
         </div>
 
-        {isCaptain && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Inbjudningskod</CardTitle>
-              <CardDescription>Dela denna kod med dina vänner så de kan gå med i laget</CardDescription>
-            </CardHeader>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Inbjudningskod</CardTitle>
+            <CardDescription>Dela denna kod eller länk med dina vänner så de kan gå med i laget</CardDescription>
+          </CardHeader>
             <CardContent>
               <div className="flex items-center gap-3">
                 <code className="flex-1 rounded-lg bg-muted px-4 py-3 font-mono text-lg tracking-widest">
@@ -134,7 +133,6 @@ export default function TeamPage() {
               </div>
             </CardContent>
           </Card>
-        )}
 
         <Card>
           <CardHeader>

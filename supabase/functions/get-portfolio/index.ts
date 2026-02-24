@@ -2,6 +2,8 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 
+const STALE_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -48,19 +50,71 @@ serve(async (req) => {
       .eq("competition_id", competitionId)
       .eq("team_id", teamId);
 
-    // Enrich holdings with current prices from cache
+    // Get short positions
+    const { data: shortPositions } = await supabase
+      .from("short_positions")
+      .select("*")
+      .eq("competition_id", competitionId)
+      .eq("team_id", teamId)
+      .is("closed_at", null);
+
+    // Collect all tickers that need prices
+    const holdingTickers = (holdings || []).map((h) => h.ticker);
+    const shortTickers = (shortPositions || []).map((s) => s.ticker);
+    const allTickers = [...new Set([...holdingTickers, ...shortTickers])];
+
+    // Fetch cached prices
+    let priceMap: Record<string, { price: number; price_sek: number; updated_at: string }> = {};
+    if (allTickers.length > 0) {
+      const { data: cached } = await supabase
+        .from("stock_price_cache")
+        .select("ticker, price, price_sek, updated_at")
+        .in("ticker", allTickers);
+      for (const p of cached || []) {
+        priceMap[p.ticker] = { price: Number(p.price), price_sek: Number(p.price_sek), updated_at: p.updated_at };
+      }
+    }
+
+    // Refresh stale prices by calling fetch-stock-price
+    const staleTickers = allTickers.filter((t) => {
+      const cached = priceMap[t];
+      if (!cached) return true;
+      return (Date.now() - new Date(cached.updated_at).getTime()) > STALE_THRESHOLD_MS;
+    });
+
+    if (staleTickers.length > 0) {
+      // Fetch stale prices in parallel (max 10 concurrent)
+      const refreshPromises = staleTickers.map(async (ticker) => {
+        try {
+          const resp = await fetch(
+            `${supabaseUrl}/functions/v1/fetch-stock-price?ticker=${encodeURIComponent(ticker)}`,
+            { headers: { Authorization: `Bearer ${serviceKey}`, apikey: serviceKey } }
+          );
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data.price_sek) {
+              priceMap[ticker] = {
+                price: Number(data.price),
+                price_sek: Number(data.price_sek),
+                updated_at: data.updated_at || new Date().toISOString(),
+              };
+            }
+          }
+        } catch (e) {
+          console.error(`Failed to refresh price for ${ticker}:`, e);
+        }
+      });
+      await Promise.all(refreshPromises);
+    }
+
+    // Enrich holdings
     let holdingsValue = 0;
     const enrichedHoldings = [];
 
     for (const h of holdings || []) {
-      const { data: cached } = await supabase
-        .from("stock_price_cache")
-        .select("*")
-        .eq("ticker", h.ticker)
-        .single();
-
-      const currentPriceSek = cached ? Number(cached.price_sek) : Number(h.avg_cost_per_share_sek);
-      const currentPrice = cached ? Number(cached.price) : 0;
+      const cached = priceMap[h.ticker];
+      const currentPriceSek = cached ? cached.price_sek : Number(h.avg_cost_per_share_sek);
+      const currentPrice = cached ? cached.price : 0;
       const totalShares = Number(h.total_shares);
       const avgCost = Number(h.avg_cost_per_share_sek);
       const marketValueSek = totalShares * currentPriceSek;
@@ -81,34 +135,21 @@ serve(async (req) => {
         market_value_sek: Math.round(marketValueSek * 100) / 100,
         unrealized_pnl_sek: Math.round(pnl * 100) / 100,
         unrealized_pnl_percent: Math.round(pnlPercent * 100) / 100,
-        stale: cached ? (Date.now() - new Date(cached.updated_at).getTime() > 300_000) : true,
+        stale: cached ? (Date.now() - new Date(cached.updated_at).getTime() > STALE_THRESHOLD_MS) : true,
       });
     }
 
-    // Get short positions
-    const { data: shortPositions } = await supabase
-      .from("short_positions")
-      .select("*")
-      .eq("competition_id", competitionId)
-      .eq("team_id", teamId)
-      .is("closed_at", null);
-
+    // Enrich short positions
     const enrichedShorts = [];
     let shortLiabilities = 0;
 
     for (const sp of shortPositions || []) {
-      const { data: cached } = await supabase
-        .from("stock_price_cache")
-        .select("*")
-        .eq("ticker", sp.ticker)
-        .single();
-
-      const currentPriceSek = cached ? Number(cached.price_sek) : Number(sp.entry_price_sek);
+      const cached = priceMap[sp.ticker];
+      const currentPriceSek = cached ? cached.price_sek : Number(sp.entry_price_sek);
       const shares = Number(sp.shares);
       const entryPriceSek = Number(sp.entry_price_sek);
       const currentValue = shares * currentPriceSek;
       const entryValue = shares * entryPriceSek;
-      // Short P&L is inverted: profit when price drops
       const pnl = entryValue - currentValue;
       const pnlPercent = entryValue > 0 ? (pnl / entryValue) * 100 : 0;
 
