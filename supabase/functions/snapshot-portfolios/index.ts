@@ -87,7 +87,8 @@ serve(async (req) => {
           shortLiabilities += Number(s.shares) * priceSek;
         }
 
-        const totalValue = cash + holdingsValue - shortLiabilities + marginReserved;
+        // margin_reserved is NOT separate — it's already in cash_balance_sek
+        const totalValue = cash + holdingsValue - shortLiabilities;
 
         await supabase.from("portfolio_snapshots").upsert(
           {

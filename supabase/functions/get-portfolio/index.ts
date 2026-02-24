@@ -140,8 +140,9 @@ serve(async (req) => {
       .order("executed_at", { ascending: false })
       .limit(10);
 
-    // total_value = cash + long_holdings - short_liabilities + margin_reserved
-    const totalValue = cash + holdingsValue - shortLiabilities + marginReserved;
+    // total_value = cash + long_holdings - short_liabilities
+    // margin_reserved is NOT separate money — it's already included in cash_balance_sek
+    const totalValue = cash + holdingsValue - shortLiabilities;
 
     return new Response(
       JSON.stringify({

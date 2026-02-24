@@ -1,10 +1,12 @@
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
 import { AlertTriangle } from "lucide-react";
 import { formatSEK } from "@/lib/mockData";
-import type { Holding } from "@/types/trading";
+import type { Holding, ShortPosition } from "@/types/trading";
 
 interface PortfolioDiversificationProps {
   holdings: Holding[];
+  shortPositions?: ShortPosition[];
+  cash?: number;
 }
 
 const COLORS = [
@@ -18,8 +20,14 @@ const COLORS = [
   "hsl(200, 80%, 55%)",
 ];
 
-export function PortfolioDiversification({ holdings }: PortfolioDiversificationProps) {
-  if (holdings.length === 0) {
+const SHORT_COLOR = "hsl(0, 60%, 44%)";
+const CASH_COLOR = "hsl(222, 15%, 40%)";
+
+export function PortfolioDiversification({ holdings, shortPositions, cash }: PortfolioDiversificationProps) {
+  const hasHoldings = holdings.length > 0;
+  const hasShorts = shortPositions && shortPositions.length > 0;
+
+  if (!hasHoldings && !hasShorts) {
     return (
       <div className="rounded-xl border bg-card p-6 text-center">
         <p className="text-muted-foreground text-sm">
@@ -29,18 +37,48 @@ export function PortfolioDiversification({ holdings }: PortfolioDiversificationP
     );
   }
 
-  const totalValue = holdings.reduce((sum, h) => sum + (h.market_value_sek ?? 0), 0);
-
-  const data = holdings
+  // Long positions
+  const longData = holdings
     .filter((h) => h.market_value_sek && h.market_value_sek > 0)
     .map((h) => ({
       name: h.ticker,
       value: h.market_value_sek!,
-      percent: totalValue > 0 ? ((h.market_value_sek! / totalValue) * 100) : 0,
+      type: "long" as const,
     }))
     .sort((a, b) => b.value - a.value);
 
-  const concentrated = data.find((d) => d.percent > 50);
+  // Short positions (use absolute value for chart sizing)
+  const shortData = (shortPositions || [])
+    .filter((sp) => sp.shares > 0 && sp.current_price_sek)
+    .map((sp) => ({
+      name: `${sp.ticker} (SHORT)`,
+      value: sp.shares * (sp.current_price_sek ?? sp.entry_price_sek),
+      type: "short" as const,
+    }))
+    .sort((a, b) => b.value - a.value);
+
+  // Cash
+  const cashEntry = cash && cash > 0 ? [{ name: "Likvida medel", value: cash, type: "cash" as const }] : [];
+
+  const allData = [...longData, ...shortData, ...cashEntry];
+  const totalPortfolioValue = allData.reduce((sum, d) => sum + d.value, 0);
+
+  const dataWithPercent = allData.map((d) => ({
+    ...d,
+    percent: totalPortfolioValue > 0 ? (d.value / totalPortfolioValue) * 100 : 0,
+  }));
+
+  const longTotal = longData.reduce((sum, d) => sum + d.value, 0);
+  const shortTotal = shortData.reduce((sum, d) => sum + d.value, 0);
+
+  const concentrated = dataWithPercent.find((d) => d.type === "long" && d.percent > 50);
+
+  const getColor = (entry: typeof dataWithPercent[number], index: number) => {
+    if (entry.type === "short") return SHORT_COLOR;
+    if (entry.type === "cash") return CASH_COLOR;
+    const longIndex = longData.findIndex((d) => d.name === entry.name);
+    return COLORS[longIndex % COLORS.length];
+  };
 
   return (
     <div className="rounded-xl border bg-card p-6">
@@ -59,7 +97,7 @@ export function PortfolioDiversification({ holdings }: PortfolioDiversificationP
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
-              data={data}
+              data={dataWithPercent}
               cx="50%"
               cy="50%"
               outerRadius={100}
@@ -68,8 +106,8 @@ export function PortfolioDiversification({ holdings }: PortfolioDiversificationP
               label={({ name, percent }) => `${name} ${percent.toFixed(0)}%`}
               labelLine={false}
             >
-              {data.map((_, i) => (
-                <Cell key={i} fill={COLORS[i % COLORS.length]} />
+              {dataWithPercent.map((entry, i) => (
+                <Cell key={i} fill={getColor(entry, i)} />
               ))}
             </Pie>
             <Tooltip
@@ -84,7 +122,7 @@ export function PortfolioDiversification({ holdings }: PortfolioDiversificationP
             />
             <Legend
               formatter={(value: string) => {
-                const item = data.find((d) => d.name === value);
+                const item = dataWithPercent.find((d) => d.name === value);
                 return `${value} (${item?.percent.toFixed(1)}%)`;
               }}
             />
@@ -92,8 +130,20 @@ export function PortfolioDiversification({ holdings }: PortfolioDiversificationP
         </ResponsiveContainer>
       </div>
 
-      <div className="mt-4 text-sm text-muted-foreground text-center">
-        Totalt aktievärde: <span className="font-mono font-semibold text-foreground">{formatSEK(totalValue)}</span>
+      <div className="mt-4 flex justify-center gap-6 text-sm text-muted-foreground">
+        <div>
+          Långa: <span className="font-mono font-semibold text-foreground">{formatSEK(longTotal)}</span>
+        </div>
+        {shortTotal > 0 && (
+          <div>
+            Blankade: <span className="font-mono font-semibold text-loss">{formatSEK(shortTotal)}</span>
+          </div>
+        )}
+        {cash !== undefined && cash > 0 && (
+          <div>
+            Likvida: <span className="font-mono font-semibold text-foreground">{formatSEK(cash)}</span>
+          </div>
+        )}
       </div>
     </div>
   );

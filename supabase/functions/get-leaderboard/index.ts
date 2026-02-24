@@ -116,8 +116,9 @@ serve(async (req) => {
         shortLiabilities += Number(s.shares) * priceSek;
       }
 
-      // total_value = cash + long_holdings - short_liabilities + margin_reserved
-      const totalValue = cash + holdingsValue - shortLiabilities + marginReserved;
+      // total_value = cash + long_holdings - short_liabilities
+      // margin_reserved is NOT separate money — it's already included in cash_balance_sek
+      const totalValue = cash + holdingsValue - shortLiabilities;
       const returnAmount = totalValue - startCapital;
       const returnPercent = startCapital > 0 ? (returnAmount / startCapital) * 100 : 0;
 
