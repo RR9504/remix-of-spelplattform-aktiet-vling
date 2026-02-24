@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { Link } from "react-router-dom";
 import { Trophy, Loader2 } from "lucide-react";
 import { formatSEK } from "@/lib/mockData";
 import { getLeaderboard } from "@/lib/api";
@@ -87,7 +88,9 @@ export function LeaderboardTable() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-semibold truncate">
-                {team.team_name}
+                <Link to={`/team/${team.team_id}/profile`} className="hover:text-primary hover:underline">
+                  {team.team_name}
+                </Link>
                 {isOwnTeam && <span className="ml-2 text-xs text-primary">(ditt lag)</span>}
               </p>
               <p className="text-xs text-muted-foreground">{team.members.join(", ")}</p>

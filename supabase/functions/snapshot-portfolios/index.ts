@@ -33,7 +33,7 @@ serve(async (req) => {
       // Get teams in this competition
       const { data: compTeams } = await supabase
         .from("competition_teams")
-        .select("team_id, cash_balance_sek")
+        .select("team_id, cash_balance_sek, margin_reserved_sek")
         .eq("competition_id", comp.id);
 
       if (!compTeams) continue;
@@ -46,8 +46,18 @@ serve(async (req) => {
         .eq("competition_id", comp.id)
         .in("team_id", teamIds);
 
+      // Get short positions
+      const { data: allShorts } = await supabase
+        .from("short_positions")
+        .select("*")
+        .eq("competition_id", comp.id)
+        .in("team_id", teamIds)
+        .is("closed_at", null);
+
       // Get cached prices
-      const tickers = [...new Set((allHoldings || []).map((h) => h.ticker))];
+      const holdingTickers = [...new Set((allHoldings || []).map((h) => h.ticker))];
+      const shortTickers = [...new Set((allShorts || []).map((s) => s.ticker))];
+      const tickers = [...new Set([...holdingTickers, ...shortTickers])];
       let priceMap: Record<string, number> = {};
       if (tickers.length > 0) {
         const { data: prices } = await supabase
@@ -61,6 +71,8 @@ serve(async (req) => {
 
       for (const ct of compTeams) {
         const cash = Number(ct.cash_balance_sek);
+        const marginReserved = Number(ct.margin_reserved_sek || 0);
+
         const teamHoldings = (allHoldings || []).filter((h) => h.team_id === ct.team_id);
         let holdingsValue = 0;
         for (const h of teamHoldings) {
@@ -68,7 +80,14 @@ serve(async (req) => {
           holdingsValue += Number(h.total_shares) * priceSek;
         }
 
-        const totalValue = cash + holdingsValue;
+        const teamShorts = (allShorts || []).filter((s) => s.team_id === ct.team_id);
+        let shortLiabilities = 0;
+        for (const s of teamShorts) {
+          const priceSek = priceMap[s.ticker] ?? Number(s.entry_price_sek);
+          shortLiabilities += Number(s.shares) * priceSek;
+        }
+
+        const totalValue = cash + holdingsValue - shortLiabilities + marginReserved;
 
         await supabase.from("portfolio_snapshots").upsert(
           {

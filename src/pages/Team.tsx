@@ -5,7 +5,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Navbar } from "@/components/Navbar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Copy, Check, Users, Crown } from "lucide-react";
+import { Copy, Check, Users, Crown, Link } from "lucide-react";
+import { AchievementShowcase } from "@/components/AchievementShowcase";
 import { toast } from "sonner";
 
 interface TeamData {
@@ -26,6 +27,7 @@ export default function TeamPage() {
   const [team, setTeam] = useState<TeamData | null>(null);
   const [members, setMembers] = useState<MemberData[]>([]);
   const [copied, setCopied] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -59,6 +61,16 @@ export default function TeamPage() {
       setCopied(true);
       toast.success("Kopierad!");
       setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const copyLink = () => {
+    if (team?.invite_code) {
+      const link = `${window.location.origin}/join/team/${team.invite_code}`;
+      navigator.clipboard.writeText(link);
+      setCopiedLink(true);
+      toast.success("Länk kopierad!");
+      setTimeout(() => setCopiedLink(false), 2000);
     }
   };
 
@@ -116,6 +128,9 @@ export default function TeamPage() {
                 <Button variant="outline" size="icon" onClick={copyCode}>
                   {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                 </Button>
+                <Button variant="outline" size="icon" onClick={copyLink} title="Kopiera inbjudningslänk">
+                  {copiedLink ? <Check className="h-4 w-4" /> : <Link className="h-4 w-4" />}
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -151,6 +166,23 @@ export default function TeamPage() {
               {members.length === 0 && (
                 <p className="text-muted-foreground text-sm">Inga medlemmar ännu.</p>
               )}
+            </div>
+          </CardContent>
+        </Card>
+        {/* Achievements per member */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Achievements</CardTitle>
+            <CardDescription>Upplåsta achievements för lagmedlemmar</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {members.map((m) => (
+                <div key={m.profile_id}>
+                  <p className="text-sm font-medium mb-2">{m.profiles?.full_name || "Okänd"}</p>
+                  <AchievementShowcase profileId={m.profile_id} />
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>

@@ -20,7 +20,7 @@ export interface TradeRequest {
   competition_id: string;
   team_id: string;
   ticker: string;
-  side: "buy" | "sell";
+  side: "buy" | "sell" | "short" | "cover";
   shares: number;
 }
 
@@ -39,12 +39,13 @@ export interface Trade {
   executed_by: string;
   ticker: string;
   stock_name: string;
-  side: "buy" | "sell";
+  side: "buy" | "sell" | "short" | "cover";
   shares: number;
   price_per_share: number;
   currency: string;
   exchange_rate: number;
   total_sek: number;
+  realized_pnl_sek?: number | null;
   executed_at: string;
 }
 
@@ -68,6 +69,8 @@ export interface Portfolio {
   total_value: number;
   holdings_value: number;
   recent_trades: Trade[];
+  short_positions?: ShortPosition[];
+  margin_reserved?: number;
 }
 
 export interface LeaderboardEntry {
@@ -95,4 +98,156 @@ export interface CompetitionTeam {
   team_id: string;
   cash_balance_sek: number;
   joined_at: string;
+}
+
+// --- Pending Orders (Limit, SL, TP) ---
+
+export type OrderType = "limit_buy" | "limit_sell" | "stop_loss" | "take_profit";
+export type OrderStatus = "pending" | "filled" | "cancelled" | "expired";
+
+export interface PendingOrder {
+  id: string;
+  competition_id: string;
+  team_id: string;
+  created_by: string;
+  ticker: string;
+  stock_name: string;
+  order_type: OrderType;
+  target_price: number;
+  shares: number;
+  currency: string;
+  status: OrderStatus;
+  reference_avg_cost_sek: number | null;
+  filled_at: string | null;
+  filled_trade_id: string | null;
+  cancelled_at: string | null;
+  created_at: string;
+  expires_at: string;
+}
+
+export interface PlaceOrderRequest {
+  competition_id: string;
+  team_id: string;
+  ticker: string;
+  stock_name: string;
+  order_type: OrderType;
+  target_price: number;
+  shares: number;
+  currency?: string;
+}
+
+export interface PlaceOrderResult {
+  success: boolean;
+  order?: PendingOrder;
+  error?: string;
+}
+
+// --- Short Selling ---
+
+export interface ShortPosition {
+  id: string;
+  competition_id: string;
+  team_id: string;
+  ticker: string;
+  stock_name: string;
+  shares: number;
+  entry_price_sek: number;
+  margin_reserved_sek: number;
+  current_price_sek?: number;
+  unrealized_pnl_sek?: number;
+  unrealized_pnl_percent?: number;
+  opened_at: string;
+  closed_at: string | null;
+}
+
+// --- Notifications ---
+
+export type NotificationType =
+  | "trade_executed"
+  | "order_filled"
+  | "order_expired"
+  | "margin_call"
+  | "forced_cover"
+  | "achievement_unlocked"
+  | "competition_started"
+  | "competition_ended"
+  | "team_joined";
+
+export interface Notification {
+  id: string;
+  user_id: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  data: Record<string, unknown> | null;
+  read_at: string | null;
+  created_at: string;
+}
+
+// --- Achievements ---
+
+export interface Achievement {
+  id: string;
+  key: string;
+  name: string;
+  description: string;
+  icon: string;
+  criteria: Record<string, unknown>;
+}
+
+export interface UserAchievement {
+  id: string;
+  profile_id: string;
+  achievement_id: string;
+  competition_id: string | null;
+  unlocked_at: string;
+  achievement?: Achievement;
+}
+
+// --- Stock Details ---
+
+export interface StockDetails {
+  ticker: string;
+  name: string;
+  price: number;
+  currency: string;
+  exchange_rate: number;
+  price_sek: number;
+  change_percent: number;
+  pe_ratio: number | null;
+  market_cap: number | null;
+  week52_high: number | null;
+  week52_low: number | null;
+  volume: number | null;
+  history: { date: string; close: number }[];
+  owners: { team_id: string; team_name: string; shares: number }[];
+  recent_trades: Trade[];
+}
+
+// --- Trade History ---
+
+export interface TradeHistoryEntry extends Trade {
+  realized_pnl_sek: number | null;
+}
+
+// --- Season Ranking ---
+
+export interface SeasonScore {
+  id: string;
+  team_id: string;
+  competition_id: string;
+  final_rank: number;
+  final_value: number;
+  final_return_percent: number;
+  points: number;
+}
+
+export interface SeasonRankingEntry {
+  team_id: string;
+  team_name: string;
+  total_points: number;
+  wins: number;
+  podiums: number;
+  competitions: number;
+  avg_rank: number;
 }

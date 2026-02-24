@@ -41,7 +41,7 @@ serve(async (req) => {
     // Get all teams in competition
     const { data: compTeams } = await supabase
       .from("competition_teams")
-      .select("team_id, cash_balance_sek")
+      .select("team_id, cash_balance_sek, margin_reserved_sek")
       .eq("competition_id", competitionId);
 
     if (!compTeams || compTeams.length === 0) {
@@ -71,8 +71,18 @@ serve(async (req) => {
       .eq("competition_id", competitionId)
       .in("team_id", teamIds);
 
+    // Get all short positions
+    const { data: allShorts } = await supabase
+      .from("short_positions")
+      .select("*")
+      .eq("competition_id", competitionId)
+      .in("team_id", teamIds)
+      .is("closed_at", null);
+
     // Get all relevant cached prices
-    const tickers = [...new Set((allHoldings || []).map((h) => h.ticker))];
+    const holdingTickers = [...new Set((allHoldings || []).map((h) => h.ticker))];
+    const shortTickers = [...new Set((allShorts || []).map((s) => s.ticker))];
+    const tickers = [...new Set([...holdingTickers, ...shortTickers])];
     let priceMap: Record<string, number> = {};
     if (tickers.length > 0) {
       const { data: prices } = await supabase
@@ -88,6 +98,7 @@ serve(async (req) => {
     const leaderboard = compTeams.map((ct) => {
       const team = teams?.find((t) => t.id === ct.team_id);
       const cash = Number(ct.cash_balance_sek);
+      const marginReserved = Number(ct.margin_reserved_sek || 0);
 
       // Calculate holdings value
       const teamHoldings = (allHoldings || []).filter((h) => h.team_id === ct.team_id);
@@ -97,11 +108,19 @@ serve(async (req) => {
         holdingsValue += Number(h.total_shares) * priceSek;
       }
 
-      const totalValue = cash + holdingsValue;
+      // Calculate short liabilities
+      const teamShorts = (allShorts || []).filter((s) => s.team_id === ct.team_id);
+      let shortLiabilities = 0;
+      for (const s of teamShorts) {
+        const priceSek = priceMap[s.ticker] ?? Number(s.entry_price_sek);
+        shortLiabilities += Number(s.shares) * priceSek;
+      }
+
+      // total_value = cash + long_holdings - short_liabilities + margin_reserved
+      const totalValue = cash + holdingsValue - shortLiabilities + marginReserved;
       const returnAmount = totalValue - startCapital;
       const returnPercent = startCapital > 0 ? (returnAmount / startCapital) * 100 : 0;
 
-      // Get members for this team
       const members = (allMembers || [])
         .filter((m) => m.team_id === ct.team_id)
         .map((m: any) => m.profiles?.full_name || m.profiles?.email || "Okänd");

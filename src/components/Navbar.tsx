@@ -1,9 +1,12 @@
 import { Link, useLocation } from "react-router-dom";
-import { BarChart3, TrendingUp, Trophy, Sparkles, ArrowRightLeft, Globe, LogOut } from "lucide-react";
+import { BarChart3, TrendingUp, Trophy, Sparkles, ArrowRightLeft, Globe, LogOut, History, Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompetition } from "@/contexts/CompetitionContext";
+import { useNotifications } from "@/contexts/NotificationContext";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { NotificationPanel } from "@/components/NotificationPanel";
 import {
   Select,
   SelectContent,
@@ -17,6 +20,7 @@ const navItems = [
   { path: "/trade", label: "Handla", icon: ArrowRightLeft },
   { path: "/leaderboard", label: "Topplista", icon: Trophy },
   { path: "/competitions", label: "Tävlingar", icon: Globe },
+  { path: "/history", label: "Historik", icon: History },
   { path: "/highlights", label: "Highlights", icon: Sparkles },
 ];
 
@@ -24,6 +28,7 @@ export function Navbar() {
   const location = useLocation();
   const { signOut } = useAuth();
   const { activeTeam, activeCompetition, teams, competitions, setActiveTeamId, setActiveCompetitionId } = useCompetition();
+  const { unreadCount } = useNotifications();
 
   return (
     <header className="sticky top-0 z-50 glass">
@@ -93,6 +98,21 @@ export function Navbar() {
               </>
             )}
           </div>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="icon" className="relative">
+                <Bell className="h-4 w-4" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] text-destructive-foreground font-bold">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="p-0 w-auto" align="end">
+              <NotificationPanel />
+            </PopoverContent>
+          </Popover>
           <Button variant="ghost" size="icon" onClick={signOut} title="Logga ut">
             <LogOut className="h-4 w-4" />
           </Button>

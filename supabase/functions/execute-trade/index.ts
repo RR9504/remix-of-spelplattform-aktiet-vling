@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
+import { notifyTeamMembers } from "../_shared/notify.ts";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -11,7 +12,6 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    // Extract user ID from JWT (gateway already verified the token)
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return new Response(JSON.stringify({ success: false, error: "Unauthorized" }), {
@@ -37,6 +37,14 @@ serve(async (req) => {
 
     if (!competition_id || !team_id || !ticker || !side || !shares || shares <= 0) {
       return new Response(JSON.stringify({ success: false, error: "Ogiltiga parametrar" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const validSides = ["buy", "sell", "short", "cover"];
+    if (!validSides.includes(side)) {
+      return new Response(JSON.stringify({ success: false, error: "Ogiltig handelstyp" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -121,27 +129,98 @@ serve(async (req) => {
 
     const totalSek = shares * priceData.price * (priceData.exchange_rate || 1);
 
-    // Execute trade atomically via DB function
-    const { data: tradeResult, error: tradeError } = await supabase.rpc("execute_trade", {
-      _competition_id: competition_id,
-      _team_id: team_id,
-      _executed_by: userId,
-      _ticker: ticker,
-      _stock_name: priceData.stock_name || ticker,
-      _side: side,
-      _shares: shares,
-      _price_per_share: priceData.price,
-      _currency: priceData.currency || "SEK",
-      _exchange_rate: priceData.exchange_rate || 1,
-      _total_sek: Math.round(totalSek * 100) / 100,
-    });
+    let tradeResult: any;
+    let tradeError: any;
+
+    if (side === "short") {
+      // Execute short sale
+      const result = await supabase.rpc("execute_short", {
+        _competition_id: competition_id,
+        _team_id: team_id,
+        _executed_by: userId,
+        _ticker: ticker,
+        _stock_name: priceData.stock_name || ticker,
+        _shares: shares,
+        _price_per_share: priceData.price,
+        _currency: priceData.currency || "SEK",
+        _exchange_rate: priceData.exchange_rate || 1,
+        _total_sek: Math.round(totalSek * 100) / 100,
+      });
+      tradeResult = result.data;
+      tradeError = result.error;
+    } else if (side === "cover") {
+      // Execute cover
+      const result = await supabase.rpc("execute_cover", {
+        _competition_id: competition_id,
+        _team_id: team_id,
+        _executed_by: userId,
+        _ticker: ticker,
+        _stock_name: priceData.stock_name || ticker,
+        _shares: shares,
+        _price_per_share: priceData.price,
+        _currency: priceData.currency || "SEK",
+        _exchange_rate: priceData.exchange_rate || 1,
+        _total_sek: Math.round(totalSek * 100) / 100,
+      });
+      tradeResult = result.data;
+      tradeError = result.error;
+    } else {
+      // Execute regular buy/sell
+      const result = await supabase.rpc("execute_trade", {
+        _competition_id: competition_id,
+        _team_id: team_id,
+        _executed_by: userId,
+        _ticker: ticker,
+        _stock_name: priceData.stock_name || ticker,
+        _side: side,
+        _shares: shares,
+        _price_per_share: priceData.price,
+        _currency: priceData.currency || "SEK",
+        _exchange_rate: priceData.exchange_rate || 1,
+        _total_sek: Math.round(totalSek * 100) / 100,
+      });
+      tradeResult = result.data;
+      tradeError = result.error;
+    }
 
     if (tradeError) {
-      console.error("execute_trade RPC error:", tradeError);
+      console.error("Trade RPC error:", tradeError);
       return new Response(JSON.stringify({ success: false, error: tradeError.message }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // Send notification to team members
+    if (tradeResult?.success) {
+      const sideLabel = side === "buy" ? "Köpt" : side === "sell" ? "Sålt" : side === "short" ? "Blankat" : "Täckt";
+      try {
+        await notifyTeamMembers(
+          supabase,
+          team_id,
+          "trade_executed",
+          `${sideLabel} ${shares} st ${ticker}`,
+          `${sideLabel} ${shares} st ${priceData.stock_name || ticker} för ${Math.round(totalSek)} SEK`,
+          { trade_id: tradeResult.trade_id, ticker, side, shares, total_sek: Math.round(totalSek * 100) / 100 }
+        );
+      } catch (e) {
+        console.error("Failed to send trade notification:", e);
+      }
+
+      // Trigger achievement check
+      try {
+        await fetch(`${supabaseUrl}/functions/v1/check-achievements`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${serviceKey}`,
+            apikey: serviceKey,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ competition_id, team_id, user_id: userId }),
+        });
+      } catch (e) {
+        console.error("Failed to check achievements:", e);
+      }
     }
 
     return new Response(JSON.stringify(tradeResult), {

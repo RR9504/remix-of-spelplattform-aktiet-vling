@@ -4,7 +4,11 @@ import { Loader2 } from "lucide-react";
 import { Navbar } from "@/components/Navbar";
 import { PortfolioChart } from "@/components/PortfolioChart";
 import { HoldingsTable } from "@/components/HoldingsTable";
+import { PendingOrdersList } from "@/components/PendingOrdersList";
+import { CompetitionChat } from "@/components/CompetitionChat";
+import { PortfolioDiversification } from "@/components/PortfolioDiversification";
 import { MarketStatus } from "@/components/MarketStatus";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { formatSEK } from "@/lib/mockData";
 import { getPortfolio } from "@/lib/api";
@@ -68,6 +72,8 @@ const Index = () => {
   const holdingsValue = portfolio?.holdings_value ?? 0;
   const totalValue = portfolio?.total_value ?? cash;
   const positions = portfolio?.holdings?.length ?? 0;
+  const marginReserved = portfolio?.margin_reserved ?? 0;
+  const hasShorts = (portfolio?.short_positions?.length ?? 0) > 0;
 
   return (
     <div className="min-h-screen bg-background">
@@ -104,13 +110,35 @@ const Index = () => {
                 <p className="text-sm text-muted-foreground">Antal positioner</p>
                 <p className="text-xl font-bold font-mono">{positions}</p>
               </div>
+              {hasShorts && (
+                <div className="rounded-xl border bg-card p-5 md:col-span-3">
+                  <p className="text-sm text-muted-foreground">Reserverad marginal (blankning)</p>
+                  <p className="text-xl font-bold font-mono">{formatSEK(marginReserved)}</p>
+                </div>
+              )}
             </div>
 
-            <PortfolioChart
-              currentValue={totalValue}
-              startValue={activeCompetition.initial_balance}
+            <Tabs defaultValue="chart">
+              <TabsList>
+                <TabsTrigger value="chart">Värdeutveckling</TabsTrigger>
+                <TabsTrigger value="diversification">Fördelning</TabsTrigger>
+              </TabsList>
+              <TabsContent value="chart">
+                <PortfolioChart
+                  currentValue={totalValue}
+                  startValue={activeCompetition.initial_balance}
+                />
+              </TabsContent>
+              <TabsContent value="diversification">
+                <PortfolioDiversification holdings={portfolio?.holdings ?? []} />
+              </TabsContent>
+            </Tabs>
+            <HoldingsTable
+              holdings={portfolio?.holdings ?? []}
+              shortPositions={portfolio?.short_positions}
             />
-            <HoldingsTable holdings={portfolio?.holdings ?? []} />
+            <PendingOrdersList />
+            <CompetitionChat />
           </>
         )}
       </main>

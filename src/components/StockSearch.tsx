@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef } from "react";
-import { Search, Loader2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Search, Loader2, Info } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { searchStocks, fetchStockPrice } from "@/lib/api";
 import type { StockSearchResult, StockPrice } from "@/types/trading";
 import { TradeDialog } from "./TradeDialog";
 
 export function StockSearch() {
+  const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<StockSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -72,9 +74,21 @@ export function StockSearch() {
                 <p className="text-xs text-muted-foreground">{stock.name}</p>
               </div>
             </div>
-            <div className="text-right">
-              <p className="text-xs text-muted-foreground">{stock.exchange}</p>
-              <p className="text-xs text-muted-foreground">{stock.currency}</p>
+            <div className="flex items-center gap-2">
+              <div className="text-right">
+                <p className="text-xs text-muted-foreground">{stock.exchange}</p>
+                <p className="text-xs text-muted-foreground">{stock.currency}</p>
+              </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate(`/stock/${encodeURIComponent(stock.ticker)}`);
+                }}
+                className="p-1 rounded hover:bg-muted-foreground/10"
+                title="Visa detaljer"
+              >
+                <Info className="h-4 w-4 text-muted-foreground" />
+              </button>
             </div>
           </button>
         ))}
