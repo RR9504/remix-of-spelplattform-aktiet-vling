@@ -8,6 +8,7 @@ import { Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { executeTrade, fetchStockPrice, placeOrder } from "@/lib/api";
 import { useCompetition } from "@/contexts/CompetitionContext";
+import { supabase } from "@/integrations/supabase/client";
 import { formatSEK, formatPrice } from "@/lib/mockData";
 import type { StockSearchResult, StockPrice, OrderType } from "@/types/trading";
 
@@ -41,11 +42,42 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
   // Short selling state
   const [shortSide, setShortSide] = useState<"short" | "cover">("short");
 
+  // Current holding state
+  const [currentShares, setCurrentShares] = useState<number>(0);
+  const [avgCost, setAvgCost] = useState<number>(0);
+  const [shortShares, setShortShares] = useState<number>(0);
+
   useEffect(() => {
     if (!priceData) {
       retryFetchPrice();
     }
   }, []);
+
+  // Fetch current holding for this ticker
+  useEffect(() => {
+    if (!activeCompetition || !activeTeam) return;
+    supabase
+      .from("team_holdings")
+      .select("total_shares, avg_cost_per_share_sek")
+      .eq("competition_id", activeCompetition.id)
+      .eq("team_id", activeTeam.id)
+      .eq("ticker", stock.ticker)
+      .maybeSingle()
+      .then(({ data }) => {
+        setCurrentShares(data ? Number(data.total_shares) : 0);
+        setAvgCost(data ? Number(data.avg_cost_per_share_sek) : 0);
+      });
+    supabase
+      .from("short_positions")
+      .select("shares")
+      .eq("competition_id", activeCompetition.id)
+      .eq("team_id", activeTeam.id)
+      .eq("ticker", stock.ticker)
+      .is("closed_at", null)
+      .then(({ data }) => {
+        setShortShares((data || []).reduce((sum, s) => sum + Number(s.shares), 0));
+      });
+  }, [activeCompetition?.id, activeTeam?.id, stock.ticker]);
 
   const retryFetchPrice = async () => {
     setFetchingPrice(true);
@@ -240,12 +272,54 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
 
                 {renderPriceInfo()}
 
+                {(currentShares > 0 || shortShares > 0) && (
+                  <div className="rounded-lg border bg-surface p-3 space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Ditt innehav</p>
+                    {currentShares > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Aktier</span>
+                        <span className="font-mono font-semibold">{currentShares.toLocaleString("sv-SE")} st</span>
+                      </div>
+                    )}
+                    {currentShares > 0 && avgCost > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">GAV</span>
+                        <span className="font-mono">{formatSEK(avgCost)}</span>
+                      </div>
+                    )}
+                    {currentShares > 0 && priceData && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Marknadsvärde</span>
+                        <span className="font-mono">{formatSEK(currentShares * priceData.price_sek)}</span>
+                      </div>
+                    )}
+                    {currentShares > 0 && avgCost > 0 && priceData && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Avkastning</span>
+                        <span className={`font-mono font-semibold ${priceData.price_sek >= avgCost ? "text-gain" : "text-loss"}`}>
+                          {priceData.price_sek >= avgCost ? "+" : ""}{formatSEK((priceData.price_sek - avgCost) * currentShares)}
+                          {" "}({((priceData.price_sek - avgCost) / avgCost * 100).toFixed(1)}%)
+                        </span>
+                      </div>
+                    )}
+                    {shortShares > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Blankat</span>
+                        <span className="font-mono font-semibold text-loss">{shortShares.toLocaleString("sv-SE")} st</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {cashBalance !== null && (
                   <div className="text-sm">
                     <span className="text-muted-foreground">Tillgängligt: </span>
                     <span className="font-mono font-semibold">{formatSEK(cashBalance)}</span>
                     {side === "buy" && maxShares > 0 && (
                       <span className="text-muted-foreground"> (max {maxShares} st)</span>
+                    )}
+                    {side === "sell" && currentShares > 0 && (
+                      <span className="text-muted-foreground"> (max {currentShares} st att sälja)</span>
                     )}
                   </div>
                 )}
@@ -403,6 +477,15 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
                 </div>
 
                 {renderPriceInfo()}
+
+                {shortShares > 0 && (
+                  <div className="rounded-lg border bg-surface p-3">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Öppen blankningsposition</span>
+                      <span className="font-mono font-semibold">{shortShares.toLocaleString("sv-SE")} st</span>
+                    </div>
+                  </div>
+                )}
 
                 {cashBalance !== null && shortSide === "short" && priceData && (
                   <div className="text-sm space-y-1">
