@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { BarChart3, TrendingUp, Trophy, Sparkles, ArrowRightLeft, Globe, LogOut, History, Bell, Eye } from "lucide-react";
+import { BarChart3, TrendingUp, Trophy, Sparkles, ArrowRightLeft, Globe, History, Bell, Eye, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompetition } from "@/contexts/CompetitionContext";
@@ -7,13 +7,8 @@ import { useNotifications } from "@/contexts/NotificationContext";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { NotificationPanel } from "@/components/NotificationPanel";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 const navItems = [
   { path: "/", label: "Dashboard", icon: BarChart3 },
@@ -27,9 +22,42 @@ const navItems = [
 
 export function Navbar() {
   const location = useLocation();
-  const { signOut } = useAuth();
-  const { activeTeam, activeCompetition, teams, competitions, setActiveTeamId, setActiveCompetitionId } = useCompetition();
+  const { user } = useAuth();
   const { unreadCount } = useNotifications();
+  const [displayName, setDisplayName] = useState("");
+
+  useEffect(() => {
+    if (!user) return;
+
+    // Try user_metadata first (available immediately)
+    const metaName = user.user_metadata?.full_name;
+    if (metaName) {
+      setDisplayName(metaName);
+    }
+
+    // Fetch from profiles for the most up-to-date name
+    supabase
+      .from("profiles")
+      .select("full_name, email")
+      .eq("id", user.id)
+      .single()
+      .then(({ data }) => {
+        if (data?.full_name) {
+          setDisplayName(data.full_name);
+        } else if (data?.email) {
+          setDisplayName(data.email.split("@")[0]);
+        }
+      });
+  }, [user]);
+
+  const initials = displayName
+    ? displayName
+        .split(" ")
+        .map((w) => w[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2)
+    : "?";
 
   return (
     <header className="sticky top-0 z-50 glass">
@@ -61,46 +89,6 @@ export function Navbar() {
           })}
         </nav>
         <div className="flex items-center gap-3">
-          {competitions.length > 1 && (
-            <Select
-              value={activeCompetition?.id ?? ""}
-              onValueChange={(v) => setActiveCompetitionId(v)}
-            >
-              <SelectTrigger className="w-[140px] h-8 text-xs">
-                <SelectValue placeholder="Tävling" />
-              </SelectTrigger>
-              <SelectContent>
-                {competitions.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-          {teams.length > 1 && (
-            <Select
-              value={activeTeam?.id ?? ""}
-              onValueChange={(v) => setActiveTeamId(v)}
-            >
-              <SelectTrigger className="w-[120px] h-8 text-xs">
-                <SelectValue placeholder="Lag" />
-              </SelectTrigger>
-              <SelectContent>
-                {teams.map((t) => (
-                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-          {activeTeam && (
-            <Link
-              to={`/team/${activeTeam.id}`}
-              className="text-right hidden sm:block hover:opacity-80 transition-opacity"
-              title="Hantera lag"
-            >
-              <p className="text-xs text-muted-foreground">Lag</p>
-              <p className="text-sm font-semibold hover:text-primary transition-colors">{activeTeam.name}</p>
-            </Link>
-          )}
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="ghost" size="icon" className="relative">
@@ -116,9 +104,16 @@ export function Navbar() {
               <NotificationPanel />
             </PopoverContent>
           </Popover>
-          <Button variant="ghost" size="icon" onClick={signOut} title="Logga ut">
-            <LogOut className="h-4 w-4" />
-          </Button>
+          <Link
+            to="/profile"
+            className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-muted transition-colors"
+            title="Min profil"
+          >
+            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/15 text-primary text-xs font-bold">
+              {initials}
+            </div>
+            <span className="text-sm font-medium hidden sm:inline">{displayName}</span>
+          </Link>
         </div>
       </div>
     </header>

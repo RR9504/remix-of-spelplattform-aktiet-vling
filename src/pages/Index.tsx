@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Loader2, HelpCircle } from "lucide-react";
+import { Loader2, HelpCircle, ChevronDown } from "lucide-react";
 import { Navbar } from "@/components/Navbar";
 import { PortfolioChart } from "@/components/PortfolioChart";
 import { HoldingsTable } from "@/components/HoldingsTable";
@@ -11,13 +11,20 @@ import { MarketStatus } from "@/components/MarketStatus";
 import { WelcomeDialog } from "@/components/WelcomeDialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { formatSEK } from "@/lib/mockData";
 import { getPortfolio } from "@/lib/api";
 import { useCompetition } from "@/contexts/CompetitionContext";
 import type { Portfolio } from "@/types/trading";
 
 const Index = () => {
-  const { activeCompetition, activeTeam, loading: ctxLoading } = useCompetition();
+  const { activeCompetition, activeTeam, competitions, teams, setActiveCompetitionId, setActiveTeamId, loading: ctxLoading } = useCompetition();
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
   const [loading, setLoading] = useState(true);
   const [showGuide, setShowGuide] = useState(() => !localStorage.getItem("stockarena_tutorial_seen"));
@@ -91,11 +98,43 @@ const Index = () => {
       <WelcomeDialog open={showGuide} onClose={() => setShowGuide(false)} />
       <main className="container py-6 space-y-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold">Dashboard</h1>
-            <p className="text-muted-foreground text-sm">
-              {activeTeam.name} · {activeCompetition.name}
-            </p>
+          <div className="flex items-center gap-3">
+            <div>
+              <h1 className="text-2xl font-bold">Dashboard</h1>
+              <p className="text-muted-foreground text-sm">
+                {activeTeam.name} · {activeCompetition.name}
+              </p>
+            </div>
+            {competitions.length > 1 && (
+              <Select
+                value={activeCompetition.id}
+                onValueChange={(v) => setActiveCompetitionId(v)}
+              >
+                <SelectTrigger className="w-[180px] h-9 text-xs">
+                  <SelectValue placeholder="Byt tävling" />
+                </SelectTrigger>
+                <SelectContent>
+                  {competitions.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {teams.length > 1 && (
+              <Select
+                value={activeTeam.id}
+                onValueChange={(v) => setActiveTeamId(v)}
+              >
+                <SelectTrigger className="w-[140px] h-9 text-xs">
+                  <SelectValue placeholder="Byt lag" />
+                </SelectTrigger>
+                <SelectContent>
+                  {teams.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
           <div className="flex items-center gap-4">
             <MarketStatus />
