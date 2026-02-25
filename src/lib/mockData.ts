@@ -95,7 +95,7 @@ export function isMarketOpen(market: 'SE' | 'US'): boolean {
   if (day === 0 || day === 6) return false;
   
   if (market === 'SE') {
-    return time >= 9 * 60 && time <= 17 * 60 + 25;  // 09:00–17:25 CET
+    return time >= 9 * 60 && time <= 17 * 60 + 30;  // 09:00–17:30 CET
   } else {
     return time >= 15 * 60 + 30 && time <= 22 * 60;  // 15:30–22:00 CET
   }
