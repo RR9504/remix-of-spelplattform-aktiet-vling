@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Search, Users, Calendar, Loader2, Plus, Copy, Check, Link } from "lucide-react";
+import { Search, Users, Calendar, Loader2, Plus, Copy, Check, Link, TicketCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompetition } from "@/contexts/CompetitionContext";
@@ -54,6 +54,46 @@ export default function Competitions() {
   const [copied, setCopied] = useState(false);
   const [myCompetitions, setMyCompetitions] = useState<(Competition & { role: string })[]>([]);
   const [copiedCompCode, setCopiedCompCode] = useState<string | null>(null);
+
+  // Join by code
+  const [showJoinCode, setShowJoinCode] = useState(false);
+  const [joinCodeInput, setJoinCodeInput] = useState("");
+  const [joinCodeLoading, setJoinCodeLoading] = useState(false);
+  const [joinCodeTarget, setJoinCodeTarget] = useState<{ id: string; name: string; start_date: string; end_date: string; initial_balance: number } | null>(null);
+  const [joinCodeError, setJoinCodeError] = useState("");
+
+  const extractCode = (input: string): string => {
+    const trimmed = input.trim();
+    // Try to extract code from a URL like /join/competition/ABC123
+    const urlMatch = trimmed.match(/\/join\/competition\/([A-Za-z0-9]+)/);
+    if (urlMatch) return urlMatch[1];
+    // Otherwise treat the whole input as a code
+    return trimmed;
+  };
+
+  const handleLookupCode = async () => {
+    const code = extractCode(joinCodeInput);
+    if (!code) {
+      setJoinCodeError("Ange en kod eller länk");
+      return;
+    }
+    setJoinCodeLoading(true);
+    setJoinCodeError("");
+    setJoinCodeTarget(null);
+
+    const { data: comp } = await supabase
+      .from("competitions")
+      .select("id, name, start_date, end_date, initial_balance")
+      .eq("invite_code", code)
+      .single();
+
+    if (!comp) {
+      setJoinCodeError("Ingen tävling hittades med denna kod");
+    } else {
+      setJoinCodeTarget(comp as any);
+    }
+    setJoinCodeLoading(false);
+  };
 
   useEffect(() => {
     fetchCompetitions();
@@ -215,9 +255,14 @@ export default function Competitions() {
             <h1 className="text-2xl font-bold">Tävlingar</h1>
             <p className="text-muted-foreground text-sm">Hitta, skapa och gå med i tävlingar</p>
           </div>
-          <Button onClick={() => { resetForm(); setShowCreate(true); }}>
-            <Plus className="h-4 w-4 mr-2" /> Skapa tävling
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => { setJoinCodeInput(""); setJoinCodeTarget(null); setJoinCodeError(""); setShowJoinCode(true); }}>
+              <TicketCheck className="h-4 w-4 mr-2" /> Ange kod
+            </Button>
+            <Button onClick={() => { resetForm(); setShowCreate(true); }}>
+              <Plus className="h-4 w-4 mr-2" /> Skapa tävling
+            </Button>
+          </div>
         </div>
 
         <div className="flex flex-col sm:flex-row gap-4">
@@ -502,6 +547,56 @@ export default function Competitions() {
               </Button>
             </form>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showJoinCode} onOpenChange={(open) => { if (!open) setShowJoinCode(false); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Gå med i tävling</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Klistra in inbjudningskoden eller hela länken du fått från tävlingsarrangören.
+            </p>
+            <div className="flex gap-2">
+              <Input
+                placeholder="Kod eller länk..."
+                value={joinCodeInput}
+                onChange={(e) => { setJoinCodeInput(e.target.value); setJoinCodeError(""); setJoinCodeTarget(null); }}
+                onKeyDown={(e) => e.key === "Enter" && handleLookupCode()}
+              />
+              <Button onClick={handleLookupCode} disabled={joinCodeLoading || !joinCodeInput.trim()}>
+                {joinCodeLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sök"}
+              </Button>
+            </div>
+            {joinCodeError && (
+              <p className="text-sm text-destructive">{joinCodeError}</p>
+            )}
+            {joinCodeTarget && (
+              <div className="rounded-lg border p-4 space-y-3">
+                <div>
+                  <p className="font-semibold">{joinCodeTarget.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {joinCodeTarget.start_date} – {joinCodeTarget.end_date} · {formatSEK(joinCodeTarget.initial_balance)}
+                  </p>
+                </div>
+                {myCompetitions.some((mc) => mc.id === joinCodeTarget.id) ? (
+                  <Badge variant="outline" className="text-xs text-muted-foreground">Du är redan med i denna tävling</Badge>
+                ) : (
+                  <Button
+                    className="w-full"
+                    onClick={() => {
+                      setShowJoinCode(false);
+                      setJoining({ ...joinCodeTarget, description: null, max_teams: null, is_public: false } as Competition);
+                    }}
+                  >
+                    Gå med
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>
