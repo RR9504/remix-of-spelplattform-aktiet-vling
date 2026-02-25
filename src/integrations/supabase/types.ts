@@ -318,6 +318,38 @@ export type Database = {
           },
         ]
       }
+      watchlist: {
+        Row: {
+          id: string
+          profile_id: string
+          ticker: string
+          stock_name: string | null
+          added_at: string
+        }
+        Insert: {
+          id?: string
+          profile_id: string
+          ticker: string
+          stock_name?: string | null
+          added_at?: string
+        }
+        Update: {
+          id?: string
+          profile_id?: string
+          ticker?: string
+          stock_name?: string | null
+          added_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "watchlist_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stock_price_cache: {
         Row: {
           ticker: string

@@ -1,11 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Navbar } from "@/components/Navbar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Copy, Check, Users, Crown, Link } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Copy, Check, Users, Crown, Link, Search, UserPlus, Loader2 } from "lucide-react";
 import { AchievementShowcase } from "@/components/AchievementShowcase";
 import { toast } from "sonner";
 
@@ -21,6 +22,12 @@ interface MemberData {
   profiles: { email: string; full_name: string | null };
 }
 
+interface ProfileResult {
+  id: string;
+  email: string;
+  full_name: string | null;
+}
+
 export default function TeamPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
@@ -29,6 +36,22 @@ export default function TeamPage() {
   const [copied, setCopied] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // Add member search state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<ProfileResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [adding, setAdding] = useState<string | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+
+  const fetchMembers = async () => {
+    if (!id) return;
+    const { data } = await supabase
+      .from("team_members")
+      .select("profile_id, profiles(email, full_name)")
+      .eq("team_id", id);
+    setMembers((data as unknown as MemberData[]) || []);
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -42,18 +65,65 @@ export default function TeamPage() {
       setTeam(data as TeamData | null);
     };
 
-    const fetchMembers = async () => {
-      const { data } = await supabase
-        .from("team_members")
-        .select("profile_id, profiles(email, full_name)")
-        .eq("team_id", id);
-      setMembers((data as unknown as MemberData[]) || []);
-      setLoading(false);
-    };
-
     fetchTeam();
-    fetchMembers();
+    fetchMembers().then(() => setLoading(false));
   }, [id]);
+
+  // Debounced user search
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    if (searchQuery.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    setSearching(true);
+    debounceRef.current = setTimeout(async () => {
+      const memberIds = members.map((m) => m.profile_id);
+
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, email, full_name")
+        .or(`email.ilike.%${searchQuery}%,full_name.ilike.%${searchQuery}%`)
+        .limit(10);
+
+      // Filter out existing members
+      const filtered = (data as unknown as ProfileResult[] || []).filter(
+        (p) => !memberIds.includes(p.id)
+      );
+      setSearchResults(filtered);
+      setSearching(false);
+    }, 300);
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [searchQuery, members]);
+
+  const handleAddMember = async (profile: ProfileResult) => {
+    if (!id) return;
+    setAdding(profile.id);
+
+    const { error } = await supabase.from("team_members").insert({
+      team_id: id,
+      profile_id: profile.id,
+    });
+
+    if (error) {
+      if (error.message.includes("duplicate")) {
+        toast.error("Användaren är redan med i laget.");
+      } else {
+        toast.error("Kunde inte lägga till: " + error.message);
+      }
+    } else {
+      toast.success(`${profile.full_name || profile.email} tillagd i laget!`);
+      await fetchMembers();
+      setSearchQuery("");
+      setSearchResults([]);
+    }
+    setAdding(null);
+  };
 
   const copyCode = () => {
     if (team?.invite_code) {
@@ -167,6 +237,68 @@ export default function TeamPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Add member - visible to captain */}
+        {isCaptain && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <UserPlus className="h-5 w-5" />
+                Lägg till medlem
+              </CardTitle>
+              <CardDescription>Sök efter registrerade användare och lägg till dem i laget</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Sök på namn eller e-post..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10"
+                  />
+                  {searching && (
+                    <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+                  )}
+                </div>
+
+                {searchQuery.length >= 2 && !searching && searchResults.length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-2">
+                    Inga användare hittades
+                  </p>
+                )}
+
+                {searchResults.map((profile) => (
+                  <div
+                    key={profile.id}
+                    className="flex items-center justify-between rounded-lg border p-3"
+                  >
+                    <div>
+                      <p className="font-medium text-sm">{profile.full_name || "Okänd"}</p>
+                      <p className="text-xs text-muted-foreground">{profile.email}</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={() => handleAddMember(profile)}
+                      disabled={adding === profile.id}
+                    >
+                      {adding === profile.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          <UserPlus className="h-4 w-4 mr-1.5" />
+                          Lägg till
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Achievements per member */}
         <Card>
           <CardHeader>
