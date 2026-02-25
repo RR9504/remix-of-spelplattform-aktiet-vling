@@ -165,7 +165,7 @@ const StockDetailPage = () => {
                 </div>
                 <div className="flex items-center gap-3 mt-1">
                   <span className="text-3xl font-bold font-mono">
-                    {formatPrice(details.price, details.currency as "SEK" | "USD")}
+                    {formatPrice(details.price, details.currency)}
                   </span>
                   <Badge
                     variant="outline"
@@ -245,6 +245,7 @@ const StockDetailPage = () => {
                         tick={{ fontSize: 11, fill: "hsl(215, 15%, 55%)" }}
                         domain={["auto", "auto"]}
                         width={60}
+                        label={{ value: details.currency, position: "insideTopLeft", offset: -5, style: { fontSize: 11, fill: "hsl(215, 15%, 55%)" } }}
                       />
                       <Tooltip
                         contentStyle={{
@@ -283,7 +284,7 @@ const StockDetailPage = () => {
                                       : m.trade.side === "sell" ? "\u25BC Sälj"
                                       : m.trade.side === "short" ? "\u25BC Blanka"
                                       : "\u25B2 Cover"}{" "}
-                                    {m.trade.shares} st @ {m.trade.price_per_share.toFixed(2)}
+                                    {m.trade.shares} st @ {m.trade.price_per_share.toFixed(2)} {m.trade.currency}
                                   </p>
                                 );
                               })}

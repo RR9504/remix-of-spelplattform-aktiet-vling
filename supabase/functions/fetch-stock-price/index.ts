@@ -85,6 +85,10 @@ serve(async (req) => {
     const currency = (meta.currency || "SEK").toUpperCase();
     const exchangeName = meta.exchangeName || meta.fullExchangeName || "";
     const stockName = meta.shortName || meta.longName || ticker;
+    const previousClose = meta.previousClose;
+    const changePercent = (price && previousClose && previousClose > 0)
+      ? Math.round(((price - previousClose) / previousClose) * 10000) / 100
+      : 0;
 
     // Get exchange rate for non-SEK currencies
     let exchangeRate = 1;
@@ -115,6 +119,7 @@ serve(async (req) => {
       currency,
       exchange_rate: exchangeRate,
       price_sek: Math.round(priceSek * 100) / 100,
+      change_percent: changePercent,
       stock_name: stockName,
       exchange: exchangeName,
       updated_at: new Date().toISOString(),

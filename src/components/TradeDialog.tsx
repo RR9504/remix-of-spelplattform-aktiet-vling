@@ -166,7 +166,7 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
       {priceData ? (
         <>
           <p className="font-mono text-lg font-semibold">
-            {formatPrice(price, currency as "SEK" | "USD")}
+            {formatPrice(price, currency)}
           </p>
           {currency !== "SEK" && (
             <p className="text-xs text-muted-foreground">
@@ -272,7 +272,7 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
                       <div className="flex justify-between text-xs text-muted-foreground mt-1">
                         <span>I {currency}</span>
                         <span className="font-mono">
-                          {formatPrice(costInCurrency, currency as "SEK" | "USD")}
+                          {formatPrice(costInCurrency, currency)}
                         </span>
                       </div>
                     )}

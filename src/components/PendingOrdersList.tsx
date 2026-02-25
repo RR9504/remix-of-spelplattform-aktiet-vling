@@ -85,7 +85,7 @@ export function PendingOrdersList() {
               <TableRow>
                 <TableHead>Aktie</TableHead>
                 <TableHead>Typ</TableHead>
-                <TableHead className="text-right">Riktkurs (SEK)</TableHead>
+                <TableHead className="text-right">Riktkurs</TableHead>
                 <TableHead className="text-right">Antal</TableHead>
                 <TableHead className="text-right">Skapad</TableHead>
                 <TableHead className="text-right"></TableHead>
@@ -105,7 +105,10 @@ export function PendingOrdersList() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right font-mono text-sm">
-                    {formatSEK(order.target_price)}
+                    <span>{formatSEK(order.target_price)}</span>
+                    {order.currency && order.currency !== "SEK" && (
+                      <span className="block text-[10px] text-muted-foreground">i SEK/{order.currency}</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-right font-mono text-sm">{order.shares}</TableCell>
                   <TableCell className="text-right text-xs text-muted-foreground">

@@ -357,6 +357,7 @@ export type Database = {
           currency: string
           exchange_rate: number
           price_sek: number
+          change_percent: number | null
           stock_name: string | null
           exchange: string | null
           updated_at: string
@@ -367,6 +368,7 @@ export type Database = {
           currency?: string
           exchange_rate?: number
           price_sek: number
+          change_percent?: number | null
           stock_name?: string | null
           exchange?: string | null
           updated_at?: string
@@ -377,6 +379,7 @@ export type Database = {
           currency?: string
           exchange_rate?: number
           price_sek?: number
+          change_percent?: number | null
           stock_name?: string | null
           exchange?: string | null
           updated_at?: string

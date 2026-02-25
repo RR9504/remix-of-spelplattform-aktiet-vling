@@ -29,7 +29,6 @@ export interface Team {
   members: string[];
 }
 
-export const USD_SEK = 10.85;
 
 export const mockStocks: Stock[] = [
   { ticker: 'VOLV-B', name: 'Volvo B', price: 268.40, change: 3.20, changePercent: 1.21, market: 'SE', currency: 'SEK' },
@@ -82,7 +81,7 @@ export function formatSEK(value: number): string {
   return new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK', maximumFractionDigits: 0 }).format(value);
 }
 
-export function formatPrice(value: number, currency: 'SEK' | 'USD'): string {
+export function formatPrice(value: number, currency: string): string {
   return new Intl.NumberFormat('sv-SE', { style: 'currency', currency, minimumFractionDigits: 2 }).format(value);
 }
 
