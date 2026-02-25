@@ -197,7 +197,10 @@ export default function Competitions() {
     return "active";
   };
 
+  const myCompIds = new Set(myCompetitions.map((mc) => mc.id));
+
   const filtered = competitions.filter((c) => {
+    if (myCompIds.has(c.id)) return false;
     if (filter !== "all" && getStatus(c) !== filter) return false;
     if (search && !c.name.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
