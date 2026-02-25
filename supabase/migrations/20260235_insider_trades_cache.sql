@@ -18,3 +18,9 @@ CREATE UNIQUE INDEX idx_insider_unique ON insider_trades_cache(ticker, transacti
 ALTER TABLE insider_trades_cache ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Anyone can read insider trades"
   ON insider_trades_cache FOR SELECT USING (true);
+CREATE POLICY "Service role can insert insider trades"
+  ON insider_trades_cache FOR INSERT WITH CHECK (true);
+CREATE POLICY "Service role can update insider trades"
+  ON insider_trades_cache FOR UPDATE USING (true);
+CREATE POLICY "Service role can delete insider trades"
+  ON insider_trades_cache FOR DELETE USING (true);

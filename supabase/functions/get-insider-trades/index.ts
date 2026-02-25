@@ -137,17 +137,24 @@ async function fetchFromFI(
     const dateTo = now.toISOString().split("T")[0];
     const dateFrom = oneYearAgo.toISOString().split("T")[0];
 
-    // Clean company name: remove suffixes like " B", " A" etc
+    // Clean company name for FI search
+    // stock_name examples: "Volvo B", "Volvo, AB ser. B", "H & M Hennes & Mauritz AB ser. B"
+    // ticker fallback: "VOLV-B" → "VOLV"
+    // FI search is fuzzy, so just extract the main company name part
+    // Clean company name for FI search
+    // Examples: "Volvo, AB ser. B" → "Volvo", "Ericsson B" → "Ericsson"
     const cleanName = companyName
-      .replace(/\s+[A-Z]$/, "")
-      .replace(/\s+AB$/, "")
+      .replace(/,?\s+(ser\.\s*)?[A-Z]$/i, "")  // " ser. B", " B"
+      .replace(/,?\s+AB(\s+\(publ\))?$/i, "")  // " AB", " AB (publ)"
+      .replace(/-[A-Z]$/i, "")                  // "VOLV-B" → "VOLV"
+      .replace(/[,;.]+$/, "")                   // trailing punctuation
       .trim();
 
     const params = new URLSearchParams({
       SearchFunctionType: "Insyn",
-      Issuer: cleanName,
-      DateOfPeriodFrom: dateFrom,
-      DateOfPeriodTo: dateTo,
+      Utgivare: cleanName,
+      "Transaktionsdatum.From": dateFrom,
+      "Transaktionsdatum.To": dateTo,
     });
 
     const url = `https://marknadssok.fi.se/Publiceringsklient/sv-SE/Search/Search?${params}`;
@@ -175,50 +182,56 @@ async function fetchFromFI(
 function parseFiHtml(html: string, ticker: string): RawInsiderTrade[] {
   const trades: RawInsiderTrade[] = [];
 
-  // Find table rows in the search results
-  // FI uses a table with columns: Publiceringsdatum, Utgivare, Person i ledande ställning,
-  // Befattning, Typ av transaktion, Instrumenttyp, ISIN, Datum, Volym, Enhet, Pris, Valuta, Status
-  const rowRegex = /<tr[^>]*class="[^"]*SearchResultRow[^"]*"[^>]*>([\s\S]*?)<\/tr>/gi;
-  const cellRegex = /<td[^>]*>([\s\S]*?)<\/td>/gi;
+  // Extract tbody content
+  const tbodyMatch = html.match(/<tbody>([\s\S]*?)<\/tbody>/i);
+  if (!tbodyMatch) return trades;
+
+  const tbody = tbodyMatch[1];
+  const rowRegex = /<tr>([\s\S]*?)<\/tr>/gi;
+  const cellRegex = /<td>([\s\S]*?)<\/td>/gi;
   const tagRegex = /<[^>]+>/g;
 
+  // Decode HTML entities
+  function decodeEntities(s: string): string {
+    return s
+      .replace(/&#160;/g, " ")
+      .replace(/&#228;/g, "ä")
+      .replace(/&#246;/g, "ö")
+      .replace(/&#229;/g, "å")
+      .replace(/&#196;/g, "Ä")
+      .replace(/&#214;/g, "Ö")
+      .replace(/&#197;/g, "Å")
+      .replace(/&amp;/g, "&");
+  }
+
   let rowMatch;
-  while ((rowMatch = rowRegex.exec(html)) !== null) {
+  while ((rowMatch = rowRegex.exec(tbody)) !== null) {
     const rowHtml = rowMatch[1];
     const cells: string[] = [];
     let cellMatch;
 
-    // Reset regex
     cellRegex.lastIndex = 0;
     while ((cellMatch = cellRegex.exec(rowHtml)) !== null) {
-      cells.push(cellMatch[1].replace(tagRegex, "").trim());
+      cells.push(decodeEntities(cellMatch[1].replace(tagRegex, "").trim()));
     }
 
-    // Expected columns (indexes may vary):
-    // 0: Publiceringsdatum, 1: Utgivare, 2: Person, 3: Befattning,
-    // 4: Närstående, 5: Typ av transaktion, 6: Instrumenttyp, 7: ISIN,
-    // 8: Datum, 9: Volym, 10: Enhet, 11: Pris, 12: Valuta, 13: Status
-    if (cells.length < 10) continue;
+    // FI columns:
+    // 0: Publiceringsdatum, 1: Emittent, 2: Person, 3: Befattning,
+    // 4: Närstående, 5: Karaktär, 6: Instrumentnamn, 7: Instrumenttyp,
+    // 8: ISIN, 9: Transaktionsdatum, 10: Volym, 11: Volymsenhet,
+    // 12: Pris, 13: Valuta, 14: Status, 15: Detaljer
+    if (cells.length < 13) continue;
 
     const personName = cells[2] || "Okänd";
     const position = cells[3] || null;
     const transactionType = cells[5] || "";
-    const dateStr = cells[8] || cells[0];
-    const volumeStr = cells[9] || "";
-    const priceStr = cells[11] || "";
+    const dateStr = cells[9];
+    const volumeStr = cells[10] || "";
+    const priceStr = cells[12] || "";
 
-    // Parse date (DD-MM-YYYY or YYYY-MM-DD)
-    let formattedDate = "";
-    if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
-      formattedDate = dateStr;
-    } else if (dateStr.match(/^\d{2}-\d{2}-\d{4}$/)) {
-      const [d, m, y] = dateStr.split("-");
-      formattedDate = `${y}-${m}-${d}`;
-    } else if (dateStr.match(/^\d{4}-\d{2}-\d{2}/)) {
-      formattedDate = dateStr.substring(0, 10);
-    } else {
-      continue; // Skip if we can't parse the date
-    }
+    // Date is YYYY-MM-DD from FI
+    if (!dateStr || !dateStr.match(/^\d{4}-\d{2}-\d{2}/)) continue;
+    const formattedDate = dateStr.substring(0, 10);
 
     const volume = parseInt(volumeStr.replace(/\s/g, "").replace(/,/g, ""), 10) || null;
     const price = parseFloat(priceStr.replace(/\s/g, "").replace(/,/g, ".")) || null;
@@ -277,14 +290,28 @@ serve(async (req) => {
     let trades: RawInsiderTrade[] = [];
 
     if (isSwedish) {
-      // Look up company name from stock_price_cache
+      // Get company name: try stock_price_cache first, then Yahoo v8 chart API
+      let companyName = "";
       const { data: stockCache } = await supabase
         .from("stock_price_cache")
         .select("stock_name")
         .eq("ticker", ticker)
         .single();
+      companyName = stockCache?.stock_name || "";
 
-      const companyName = stockCache?.stock_name || ticker.replace(".ST", "");
+      // Always try Yahoo v8 to get a good name for FI search
+      if (!companyName || companyName.length < 3) {
+        try {
+          const yahooUrl = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=1d`;
+          const yahooResp = await fetch(yahooUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
+          if (yahooResp.ok) {
+            const yahooData = await yahooResp.json();
+            companyName = yahooData?.chart?.result?.[0]?.meta?.shortName || companyName;
+          }
+        } catch { /* ignore */ }
+      }
+
+      if (!companyName) companyName = ticker.replace(".ST", "");
 
       // Try FI first
       trades = await fetchFromFI(ticker, companyName);
@@ -337,15 +364,20 @@ serve(async (req) => {
         .upsert(rows, { onConflict: "ticker,transaction_date,insider_name,transaction_type" });
     }
 
-    // 4. Return fresh data
+    // 4. Return fresh data — try cache first, fall back to in-memory trades
     const { data: result } = await supabase
       .from("insider_trades_cache")
       .select("*")
       .eq("ticker", ticker)
       .order("transaction_date", { ascending: false });
 
+    // If cache write failed, return the fetched trades directly
+    const finalTrades = (result && result.length > 0)
+      ? result
+      : trades.map((t) => ({ ...t, id: crypto.randomUUID(), fetched_at: new Date().toISOString() }));
+
     return new Response(
-      JSON.stringify({ insider_trades: result || [] }),
+      JSON.stringify({ insider_trades: finalTrades }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       }
