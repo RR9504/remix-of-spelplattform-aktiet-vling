@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Rocket, Crown, Loader2, TrendingUp, ArrowDownRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompetition } from "@/contexts/CompetitionContext";
+import { getLeaderboard } from "@/lib/api";
 import { formatSEK } from "@/lib/mockData";
 import confetti from "canvas-confetti";
 import { motion } from "framer-motion";
@@ -71,28 +72,31 @@ export function WeeklyHighlights() {
     // Get all trades from this week in the competition
     const { data: trades } = await supabase
       .from("trades")
-      .select("ticker, stock_name, team_id, side, shares, price_per_share, total_sek, executed_at")
+      .select("ticker, stock_name, team_id, side, shares, price_per_share, total_sek, currency, exchange_rate, executed_at")
       .eq("competition_id", activeCompetition.id)
       .gte("executed_at", weekAgoStr)
       .order("executed_at", { ascending: true });
 
-    // Get cached prices for tickers
+    // Get cached prices for tickers (with change_percent)
     const tickers = [...new Set((trades || []).map((t: any) => t.ticker))];
-    let priceMap: Record<string, number> = {};
+    let priceMap: Record<string, { price_sek: number; change_percent: number | null }> = {};
     if (tickers.length > 0) {
       const { data: prices } = await supabase
         .from("stock_price_cache")
-        .select("ticker, price_sek")
+        .select("ticker, price_sek, change_percent")
         .in("ticker", tickers);
       for (const p of (prices || []) as any[]) {
-        priceMap[p.ticker] = Number(p.price_sek);
+        priceMap[p.ticker] = {
+          price_sek: Number(p.price_sek),
+          change_percent: p.change_percent != null ? Number(p.change_percent) : null,
+        };
       }
     }
 
-    // Get teams in competition
+    // Get team name map
     const { data: ctRows } = await supabase
       .from("competition_teams")
-      .select("team_id, cash_balance_sek")
+      .select("team_id")
       .eq("competition_id", activeCompetition.id);
 
     const teamIds = (ctRows || []).map((r: any) => r.team_id);
@@ -107,11 +111,11 @@ export function WeeklyHighlights() {
       }
     }
 
-    // --- Veckans Raket: stock with best price performance held by any team ---
-    // For each ticker traded this week, compute change between first buy price and current price
+    // --- Veckans Raket: stock with best price change since buy this week ---
     const tickerFirstBuy: Record<string, { price_sek: number; team_id: string; stock_name: string }> = {};
     for (const t of (trades || []) as any[]) {
       if (t.side === "buy" && !tickerFirstBuy[t.ticker]) {
+        // Use total_sek / shares for per-share cost in SEK
         tickerFirstBuy[t.ticker] = {
           price_sek: Number(t.total_sek) / Number(t.shares),
           team_id: t.team_id,
@@ -122,9 +126,9 @@ export function WeeklyHighlights() {
 
     let bestRocket: RocketStock | null = null;
     for (const [ticker, info] of Object.entries(tickerFirstBuy)) {
-      const currentPrice = priceMap[ticker];
-      if (!currentPrice || info.price_sek <= 0) continue;
-      const changePct = ((currentPrice - info.price_sek) / info.price_sek) * 100;
+      const cached = priceMap[ticker];
+      if (!cached || info.price_sek <= 0) continue;
+      const changePct = ((cached.price_sek - info.price_sek) / info.price_sek) * 100;
       if (!bestRocket || changePct > bestRocket.change_percent) {
         bestRocket = {
           ticker,
@@ -136,42 +140,23 @@ export function WeeklyHighlights() {
     }
     setRocket(bestRocket);
 
-    // --- Veckans Vinnare: team with best return ---
-    // Get all holdings for teams
-    const { data: allHoldings } = await supabase
-      .from("team_holdings")
-      .select("*")
-      .eq("competition_id", activeCompetition.id)
-      .in("team_id", teamIds);
-
-    const startCapital = Number(activeCompetition.initial_balance);
-    let bestWinner: WeeklyWinner | null = null;
-
-    for (const ct of (ctRows || []) as any[]) {
-      const cash = Number(ct.cash_balance_sek);
-      const teamHoldings = (allHoldings || []).filter((h: any) => h.team_id === ct.team_id);
-      let holdingsValue = 0;
-      for (const h of teamHoldings as any[]) {
-        const priceSek = priceMap[h.ticker] ?? Number(h.avg_cost_per_share_sek);
-        holdingsValue += Number(h.total_shares) * priceSek;
-      }
-      const totalValue = cash + holdingsValue;
-      const returnPct = startCapital > 0 ? ((totalValue - startCapital) / startCapital) * 100 : 0;
-
-      if (!bestWinner || returnPct > bestWinner.return_percent) {
-        bestWinner = {
-          team_name: teamNameMap[ct.team_id] || "Okänt lag",
-          total_value: Math.round(totalValue),
-          return_percent: Math.round(returnPct * 100) / 100,
-        };
-      }
+    // --- Veckans Vinnare: use leaderboard (correctly computes cash + holdings - shorts) ---
+    const leaderboardResult = await getLeaderboard(activeCompetition.id);
+    if (leaderboardResult && leaderboardResult.leaderboard.length > 0) {
+      const top = leaderboardResult.leaderboard[0];
+      setWinner({
+        team_name: top.team_name,
+        total_value: Math.round(top.total_value),
+        return_percent: Math.round(top.return_percent * 100) / 100,
+      });
+    } else {
+      setWinner(null);
     }
-    setWinner(bestWinner);
 
     // --- Största affären denna vecka ---
     let biggest: BiggestTrade | null = null;
     for (const t of (trades || []) as any[]) {
-      const sek = Number(t.total_sek);
+      const sek = Math.abs(Number(t.total_sek));
       if (!biggest || sek > biggest.total_sek) {
         biggest = {
           ticker: t.ticker,
