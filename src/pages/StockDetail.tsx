@@ -200,11 +200,11 @@ const StockDetailPage = () => {
                     <div className="flex items-center gap-3 text-xs text-muted-foreground">
                       <span className="flex items-center gap-1">
                         <span className="inline-block w-3 h-3 rounded-full bg-gain/20 border border-gain text-[8px] leading-3 text-center text-gain font-bold">{"\u25B2"}</span>
-                        Köp/Blanka
+                        Köp/Cover
                       </span>
                       <span className="flex items-center gap-1">
                         <span className="inline-block w-3 h-3 rounded-full bg-loss/20 border border-loss text-[8px] leading-3 text-center text-loss font-bold">{"\u25BC"}</span>
-                        Sälj/Cover
+                        Sälj/Blanka
                       </span>
                     </div>
                   )}
