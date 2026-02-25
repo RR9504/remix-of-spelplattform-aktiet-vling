@@ -7,9 +7,10 @@ import type { Holding, ShortPosition } from "@/types/trading";
 interface HoldingsTableProps {
   holdings: Holding[];
   shortPositions?: ShortPosition[];
+  totalValue?: number;
 }
 
-export function HoldingsTable({ holdings, shortPositions }: HoldingsTableProps) {
+export function HoldingsTable({ holdings, shortPositions, totalValue }: HoldingsTableProps) {
   const hasShorts = shortPositions && shortPositions.length > 0;
 
   if (holdings.length === 0 && !hasShorts) {
@@ -35,6 +36,7 @@ export function HoldingsTable({ holdings, shortPositions }: HoldingsTableProps) 
               <TableHead className="text-right">GAV (SEK)</TableHead>
               <TableHead className="text-right">Kurs (SEK)</TableHead>
               <TableHead className="text-right">Värde (SEK)</TableHead>
+              <TableHead className="text-right">Andel</TableHead>
               <TableHead className="text-right">Avkastning</TableHead>
             </TableRow>
           </TableHeader>
@@ -73,6 +75,11 @@ export function HoldingsTable({ holdings, shortPositions }: HoldingsTableProps) 
                   </TableCell>
                   <TableCell className="text-right font-mono text-sm">
                     {h.market_value_sek ? formatSEK(h.market_value_sek) : "–"}
+                  </TableCell>
+                  <TableCell className="text-right font-mono text-sm text-muted-foreground">
+                    {h.market_value_sek && totalValue
+                      ? `${((h.market_value_sek / totalValue) * 100).toFixed(1)}%`
+                      : "–"}
                   </TableCell>
                   <TableCell
                     className={`text-right font-mono text-sm font-medium ${isPositive ? "text-gain" : "text-loss"}`}

@@ -10,6 +10,7 @@ import { formatSEK, formatPrice } from "@/lib/mockData";
 import { getStockDetails, fetchStockPrice } from "@/lib/api";
 import { useCompetition } from "@/contexts/CompetitionContext";
 import { TradeDialog } from "@/components/TradeDialog";
+import { WatchlistButton } from "@/components/WatchlistButton";
 import type { StockDetails, StockPrice } from "@/types/trading";
 
 const RANGES = [
@@ -90,7 +91,10 @@ const StockDetailPage = () => {
                   </p>
                 )}
               </div>
-              <Button onClick={handleOpenTrade}>Handla {ticker}</Button>
+              <div className="flex items-center gap-2">
+                <WatchlistButton ticker={ticker} stockName={details?.name} variant="default" />
+                <Button onClick={handleOpenTrade}>Handla {ticker}</Button>
+              </div>
             </div>
 
             {/* Chart */}

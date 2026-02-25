@@ -16,6 +16,8 @@ import type {
   Achievement,
   UserAchievement,
   SeasonRankingEntry,
+  WatchlistItem,
+  ComparisonData,
 } from "@/types/trading";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -313,5 +315,75 @@ export async function getSeasonRanking(): Promise<SeasonRankingEntry[]> {
     return data.ranking || [];
   } catch {
     return [];
+  }
+}
+
+// --- Watchlist ---
+
+export async function getWatchlist(): Promise<WatchlistItem[]> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+    const { data, error } = await supabase
+      .from("watchlist")
+      .select("*")
+      .eq("profile_id", user.id)
+      .order("added_at", { ascending: false });
+    if (error) return [];
+    return (data as unknown as WatchlistItem[]) || [];
+  } catch {
+    return [];
+  }
+}
+
+export async function addToWatchlist(
+  ticker: string,
+  stockName?: string
+): Promise<boolean> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+    const { error } = await supabase.from("watchlist").insert({
+      profile_id: user.id,
+      ticker,
+      stock_name: stockName || null,
+    });
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+export async function removeFromWatchlist(ticker: string): Promise<boolean> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+    const { error } = await supabase
+      .from("watchlist")
+      .delete()
+      .eq("profile_id", user.id)
+      .eq("ticker", ticker);
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+// --- Comparison Chart ---
+
+export async function getComparisonData(
+  competitionId: string,
+  teamId: string
+): Promise<ComparisonData | null> {
+  try {
+    const headers = await getAuthHeaders();
+    const res = await fetch(
+      `${SUPABASE_URL}/functions/v1/get-comparison-data?competition_id=${competitionId}&team_id=${teamId}`,
+      { headers }
+    );
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
   }
 }

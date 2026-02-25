@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Loader2 } from "lucide-react";
+import { Loader2, HelpCircle } from "lucide-react";
 import { Navbar } from "@/components/Navbar";
 import { PortfolioChart } from "@/components/PortfolioChart";
 import { HoldingsTable } from "@/components/HoldingsTable";
@@ -8,6 +8,7 @@ import { PendingOrdersList } from "@/components/PendingOrdersList";
 import { CompetitionChat } from "@/components/CompetitionChat";
 import { PortfolioDiversification } from "@/components/PortfolioDiversification";
 import { MarketStatus } from "@/components/MarketStatus";
+import { WelcomeDialog } from "@/components/WelcomeDialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { formatSEK } from "@/lib/mockData";
@@ -19,6 +20,7 @@ const Index = () => {
   const { activeCompetition, activeTeam, loading: ctxLoading } = useCompetition();
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showGuide, setShowGuide] = useState(() => !localStorage.getItem("stockarena_tutorial_seen"));
 
   useEffect(() => {
     if (!activeCompetition || !activeTeam) {
@@ -86,6 +88,7 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
+      <WelcomeDialog open={showGuide} onClose={() => setShowGuide(false)} />
       <main className="container py-6 space-y-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
@@ -96,6 +99,14 @@ const Index = () => {
           </div>
           <div className="flex items-center gap-4">
             <MarketStatus />
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowGuide(true)}
+              title="Visa guide"
+            >
+              <HelpCircle className="h-5 w-5 text-muted-foreground" />
+            </Button>
           </div>
         </div>
 
@@ -154,6 +165,7 @@ const Index = () => {
             <HoldingsTable
               holdings={portfolio?.holdings ?? []}
               shortPositions={portfolio?.short_positions}
+              totalValue={totalValue}
             />
             <PendingOrdersList />
             <CompetitionChat />

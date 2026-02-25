@@ -18,6 +18,7 @@ import Competitions from "./pages/Competitions";
 import StockDetail from "./pages/StockDetail";
 import TeamProfile from "./pages/TeamProfile";
 import JoinLanding from "./pages/JoinLanding";
+import Watchlist from "./pages/Watchlist";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -64,6 +65,7 @@ const App = () => (
                 <Route path="/leaderboard" element={<ProtectedRoute><Leaderboard /></ProtectedRoute>} />
                 <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
                 <Route path="/highlights" element={<ProtectedRoute><Highlights /></ProtectedRoute>} />
+                <Route path="/watchlist" element={<ProtectedRoute><Watchlist /></ProtectedRoute>} />
                 <Route path="/stock/:ticker" element={<ProtectedRoute><StockDetail /></ProtectedRoute>} />
                 <Route path="/join/:type/:code" element={<JoinLanding />} />
                 <Route path="*" element={<NotFound />} />

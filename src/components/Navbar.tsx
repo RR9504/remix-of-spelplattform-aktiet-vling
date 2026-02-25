@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { BarChart3, TrendingUp, Trophy, Sparkles, ArrowRightLeft, Globe, LogOut, History, Bell } from "lucide-react";
+import { BarChart3, TrendingUp, Trophy, Sparkles, ArrowRightLeft, Globe, LogOut, History, Bell, Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompetition } from "@/contexts/CompetitionContext";
@@ -20,6 +20,7 @@ const navItems = [
   { path: "/trade", label: "Handla", icon: ArrowRightLeft },
   { path: "/leaderboard", label: "Topplista", icon: Trophy },
   { path: "/competitions", label: "Tävlingar", icon: Globe },
+  { path: "/watchlist", label: "Bevakning", icon: Eye },
   { path: "/history", label: "Historik", icon: History },
   { path: "/highlights", label: "Highlights", icon: Sparkles },
 ];

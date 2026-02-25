@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { searchStocks, fetchStockPrice } from "@/lib/api";
 import type { StockSearchResult, StockPrice } from "@/types/trading";
 import { TradeDialog } from "./TradeDialog";
+import { WatchlistButton } from "./WatchlistButton";
 
 export function StockSearch() {
   const navigate = useNavigate();
@@ -78,6 +79,9 @@ export function StockSearch() {
               <div className="text-right">
                 <p className="text-xs text-muted-foreground">{stock.exchange}</p>
                 <p className="text-xs text-muted-foreground">{stock.currency}</p>
+              </div>
+              <div onClick={(e) => e.stopPropagation()}>
+                <WatchlistButton ticker={stock.ticker} stockName={stock.name} />
               </div>
               <button
                 onClick={(e) => {

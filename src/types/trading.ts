@@ -230,6 +230,36 @@ export interface TradeHistoryEntry extends Trade {
   realized_pnl_sek: number | null;
 }
 
+// --- Watchlist ---
+
+export interface WatchlistItem {
+  id: string;
+  profile_id: string;
+  ticker: string;
+  stock_name: string | null;
+  added_at: string;
+}
+
+// --- Comparison Chart ---
+
+export interface ComparisonTeam {
+  team_id: string;
+  team_name: string;
+  snapshots: { date: string; value: number; return_percent: number }[];
+}
+
+export interface BenchmarkData {
+  name: string;
+  snapshots: { date: string; return_percent: number }[];
+}
+
+export interface ComparisonData {
+  teams: ComparisonTeam[];
+  benchmark: BenchmarkData;
+  start_value: number;
+  my_team_id: string;
+}
+
 // --- Season Ranking ---
 
 export interface SeasonScore {
