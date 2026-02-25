@@ -15,11 +15,11 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Loader2 } from "lucide-react";
 import { formatSEK, formatPrice } from "@/lib/mockData";
-import { getStockDetails, fetchStockPrice } from "@/lib/api";
+import { getStockDetails, fetchStockPrice, getInsiderTrades } from "@/lib/api";
 import { useCompetition } from "@/contexts/CompetitionContext";
 import { TradeDialog } from "@/components/TradeDialog";
 import { WatchlistButton } from "@/components/WatchlistButton";
-import type { StockDetails, StockPrice, Trade } from "@/types/trading";
+import type { StockDetails, StockPrice, Trade, InsiderTransaction } from "@/types/trading";
 
 const RANGES = [
   { key: "1w", label: "1V" },
@@ -101,6 +101,84 @@ function mergeTradesIntoHistory(
   return tradeMarkers;
 }
 
+// Custom diamond marker for insider trades
+function InsiderMarker({ cx, cy, insider }: { cx?: number; cy?: number; insider: InsiderTransaction }) {
+  if (cx === undefined || cy === undefined) return null;
+  const isBuy = insider.transaction_type === "buy";
+  const isSell = insider.transaction_type === "sell";
+  const color = isBuy
+    ? "hsl(210, 80%, 55%)"
+    : isSell
+      ? "hsl(30, 90%, 55%)"
+      : "hsl(215, 15%, 55%)";
+  const label = isBuy ? "K" : isSell ? "S" : "";
+
+  return (
+    <g>
+      <polygon
+        points={`${cx},${cy - 10} ${cx + 8},${cy} ${cx},${cy + 10} ${cx - 8},${cy}`}
+        fill={color}
+        fillOpacity={0.2}
+        stroke={color}
+        strokeWidth={1.5}
+      />
+      {label && (
+        <text
+          x={cx}
+          y={cy + 1}
+          textAnchor="middle"
+          dominantBaseline="central"
+          fontSize={8}
+          fontWeight="bold"
+          fill={color}
+        >
+          {label}
+        </text>
+      )}
+    </g>
+  );
+}
+
+// Merge insider trades into chart history data (same pattern as mergeTradesIntoHistory)
+function mergeInsiderTradesIntoHistory(
+  history: { date: string; close: number }[],
+  insiderTrades: InsiderTransaction[]
+) {
+  const dateMap: Record<string, number> = {};
+  for (const h of history) {
+    dateMap[h.date] = h.close;
+  }
+
+  const markers: { date: string; close: number; insider: InsiderTransaction }[] = [];
+
+  for (const trade of insiderTrades) {
+    const tradeDate = trade.transaction_date;
+
+    if (dateMap[tradeDate] !== undefined) {
+      markers.push({ date: tradeDate, close: dateMap[tradeDate], insider: trade });
+      continue;
+    }
+
+    let closest: string | null = null;
+    let closestDiff = Infinity;
+    const tradeTime = new Date(tradeDate).getTime();
+
+    for (const h of history) {
+      const diff = Math.abs(new Date(h.date).getTime() - tradeTime);
+      if (diff < closestDiff) {
+        closestDiff = diff;
+        closest = h.date;
+      }
+    }
+
+    if (closest && dateMap[closest] !== undefined) {
+      markers.push({ date: closest, close: dateMap[closest], insider: trade });
+    }
+  }
+
+  return markers;
+}
+
 const StockDetailPage = () => {
   const { ticker } = useParams<{ ticker: string }>();
   const { activeCompetition } = useCompetition();
@@ -109,6 +187,9 @@ const StockDetailPage = () => {
   const [range, setRange] = useState("1m");
   const [showTrade, setShowTrade] = useState(false);
   const [priceData, setPriceData] = useState<StockPrice | null>(null);
+  const [showInsiders, setShowInsiders] = useState(false);
+  const [insiderTrades, setInsiderTrades] = useState<InsiderTransaction[]>([]);
+  const [insidersLoading, setInsidersLoading] = useState(false);
 
   useEffect(() => {
     if (!ticker) return;
@@ -126,9 +207,25 @@ const StockDetailPage = () => {
     setShowTrade(true);
   };
 
+  // Lazy-fetch insider trades when toggle is turned on
+  const handleToggleInsiders = useCallback(async () => {
+    if (!showInsiders && insiderTrades.length === 0 && ticker) {
+      setInsidersLoading(true);
+      const trades = await getInsiderTrades(ticker);
+      setInsiderTrades(trades);
+      setInsidersLoading(false);
+    }
+    setShowInsiders((prev) => !prev);
+  }, [showInsiders, insiderTrades.length, ticker]);
+
   // Compute trade markers for the chart
   const tradeMarkers = details
     ? mergeTradesIntoHistory(details.history, details.recent_trades)
+    : [];
+
+  // Compute insider trade markers
+  const insiderMarkers = details && showInsiders
+    ? mergeInsiderTradesIntoHistory(details.history, insiderTrades)
     : [];
 
   // Build a date index for ReferenceDot x positioning
@@ -208,6 +305,19 @@ const StockDetailPage = () => {
                       </span>
                     </div>
                   )}
+                  <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={showInsiders}
+                      onChange={handleToggleInsiders}
+                      disabled={insidersLoading}
+                      className="accent-blue-500 w-3 h-3"
+                    />
+                    <svg width="12" height="12" viewBox="0 0 12 12">
+                      <polygon points="6,1 11,6 6,11 1,6" fill="hsl(210, 80%, 55%)" fillOpacity={0.3} stroke="hsl(210, 80%, 55%)" strokeWidth={1} />
+                    </svg>
+                    {insidersLoading ? "Laddar..." : "Insynshandel"}
+                  </label>
                 </div>
                 <div className="flex gap-1">
                   {RANGES.map((r) => (
@@ -260,6 +370,7 @@ const StockDetailPage = () => {
                           const close = payload[0]?.value;
                           // Find trades on this date
                           const dateTrades = tradeMarkers.filter((m) => m.date === label);
+                          const dateInsiders = showInsiders ? insiderMarkers.filter((m) => m.date === label) : [];
                           return (
                             <div
                               style={{
@@ -288,6 +399,20 @@ const StockDetailPage = () => {
                                   </p>
                                 );
                               })}
+                              {dateInsiders.map((m, i) => {
+                                const ins = m.insider;
+                                const isBuy = ins.transaction_type === "buy";
+                                const color = isBuy ? "hsl(210, 80%, 55%)" : ins.transaction_type === "sell" ? "hsl(30, 90%, 55%)" : "hsl(215, 15%, 55%)";
+                                const typeLabel = isBuy ? "Insiderköp" : ins.transaction_type === "sell" ? "Insidersälj" : "Insidertransaktion";
+                                return (
+                                  <p key={`ins-${i}`} className="text-xs mt-1" style={{ color }}>
+                                    {"\u25C6"} {typeLabel}: {ins.insider_name}
+                                    {ins.title ? ` (${ins.title})` : ""}
+                                    {ins.shares ? ` — ${ins.shares.toLocaleString("sv-SE")} st` : ""}
+                                    {ins.value_sek ? ` (${ins.value_sek.toLocaleString("sv-SE")} kr)` : ""}
+                                  </p>
+                                );
+                              })}
                             </div>
                           );
                         }}
@@ -306,6 +431,15 @@ const StockDetailPage = () => {
                           x={marker.date}
                           y={marker.close}
                           shape={<TradeMarker trade={marker.trade} />}
+                        />
+                      ))}
+                      {/* Insider trade markers */}
+                      {showInsiders && insiderMarkers.map((marker, i) => (
+                        <ReferenceDot
+                          key={`insider-${i}`}
+                          x={marker.date}
+                          y={marker.close}
+                          shape={<InsiderMarker insider={marker.insider} />}
                         />
                       ))}
                     </AreaChart>

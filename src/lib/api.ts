@@ -18,6 +18,7 @@ import type {
   SeasonRankingEntry,
   WatchlistItem,
   ComparisonData,
+  InsiderTransaction,
 } from "@/types/trading";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -366,6 +367,23 @@ export async function removeFromWatchlist(ticker: string): Promise<boolean> {
     return !error;
   } catch {
     return false;
+  }
+}
+
+// --- Insider Trades ---
+
+export async function getInsiderTrades(ticker: string): Promise<InsiderTransaction[]> {
+  try {
+    const headers = await getAuthHeaders();
+    const res = await fetch(
+      `${SUPABASE_URL}/functions/v1/get-insider-trades?ticker=${encodeURIComponent(ticker)}`,
+      { headers }
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.insider_trades ?? [];
+  } catch {
+    return [];
   }
 }
 

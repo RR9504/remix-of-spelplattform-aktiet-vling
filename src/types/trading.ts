@@ -204,6 +204,20 @@ export interface UserAchievement {
   achievement?: Achievement;
 }
 
+// --- Insider Trades ---
+
+export interface InsiderTransaction {
+  id: string;
+  ticker: string;
+  transaction_date: string;   // "YYYY-MM-DD"
+  insider_name: string;
+  title: string | null;       // "VD", "CFO", etc.
+  transaction_type: "buy" | "sell" | "exercise" | "other";
+  shares: number | null;
+  value_sek: number | null;
+  source: "yahoo" | "fi";
+}
+
 // --- Stock Details ---
 
 export interface StockDetails {

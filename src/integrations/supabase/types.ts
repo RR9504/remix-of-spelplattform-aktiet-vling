@@ -386,6 +386,45 @@ export type Database = {
         }
         Relationships: []
       }
+      insider_trades_cache: {
+        Row: {
+          id: string
+          ticker: string
+          transaction_date: string
+          insider_name: string
+          title: string | null
+          transaction_type: string
+          shares: number | null
+          value_sek: number | null
+          source: string
+          fetched_at: string
+        }
+        Insert: {
+          id?: string
+          ticker: string
+          transaction_date: string
+          insider_name: string
+          title?: string | null
+          transaction_type: string
+          shares?: number | null
+          value_sek?: number | null
+          source: string
+          fetched_at?: string
+        }
+        Update: {
+          id?: string
+          ticker?: string
+          transaction_date?: string
+          insider_name?: string
+          title?: string | null
+          transaction_type?: string
+          shares?: number | null
+          value_sek?: number | null
+          source?: string
+          fetched_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       team_holdings: {
