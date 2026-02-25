@@ -133,7 +133,7 @@ export function PortfolioChart({ currentValue, startValue: propStartValue }: Por
     });
   };
 
-  // Build comparison chart data
+  // Build comparison chart data with carry-forward for missing dates
   const comparisonChartData = (() => {
     if (!comparisonData) return [];
 
@@ -150,22 +150,41 @@ export function PortfolioChart({ currentValue, startValue: propStartValue }: Por
 
     const dates = Array.from(dateSet).sort();
 
+    // Build a date→return_percent map per team for carry-forward
+    const teamMaps: Record<string, Record<string, number>> = {};
+    for (const team of comparisonData.teams) {
+      const map: Record<string, number> = {};
+      for (const s of team.snapshots) {
+        map[s.date] = s.return_percent;
+      }
+      teamMaps[team.team_id] = map;
+    }
+    const benchMap: Record<string, number> = {};
+    for (const s of comparisonData.benchmark.snapshots) {
+      benchMap[s.date] = s.return_percent;
+    }
+
+    // Track last known value per team for carry-forward
+    const lastKnown: Record<string, number> = {};
+    let lastBench = 0;
+
     return dates.map((date) => {
       const point: Record<string, string | number> = {
         date: new Date(date).toLocaleDateString("sv-SE", { day: "numeric", month: "short" }),
       };
 
       for (const team of comparisonData.teams) {
-        const snapshot = team.snapshots.find((s) => s.date === date);
-        if (snapshot) {
-          point[team.team_id] = snapshot.return_percent;
+        if (teamMaps[team.team_id][date] !== undefined) {
+          lastKnown[team.team_id] = teamMaps[team.team_id][date];
         }
+        // Use last known value, or 0% (start capital) if no data yet
+        point[team.team_id] = lastKnown[team.team_id] ?? 0;
       }
 
-      const benchSnapshot = comparisonData.benchmark.snapshots.find((s) => s.date === date);
-      if (benchSnapshot) {
-        point["benchmark"] = benchSnapshot.return_percent;
+      if (benchMap[date] !== undefined) {
+        lastBench = benchMap[date];
       }
+      point["benchmark"] = lastBench;
 
       return point;
     });
