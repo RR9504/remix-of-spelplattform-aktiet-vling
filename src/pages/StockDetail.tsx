@@ -31,7 +31,7 @@ const RANGES = [
 // Custom marker rendered on the chart for buy/sell trades
 function TradeMarker({ cx, cy, trade }: { cx?: number; cy?: number; trade: Trade }) {
   if (cx === undefined || cy === undefined) return null;
-  const isBuy = trade.side === "buy" || trade.side === "short";
+  const isBuy = trade.side === "buy" || trade.side === "cover";
   const emoji = isBuy ? "\u25B2" : "\u25BC"; // ▲ ▼
   const color = isBuy ? "hsl(142, 71%, 45%)" : "hsl(0, 72%, 51%)";
 
@@ -272,7 +272,7 @@ const StockDetailPage = () => {
                             >
                               <p className="font-mono text-sm">{label}: {Number(close).toFixed(2)} {details.currency}</p>
                               {dateTrades.map((m, i) => {
-                                const isBuy = m.trade.side === "buy" || m.trade.side === "short";
+                                const isBuy = m.trade.side === "buy" || m.trade.side === "cover";
                                 return (
                                   <p
                                     key={i}
@@ -281,8 +281,8 @@ const StockDetailPage = () => {
                                   >
                                     {m.trade.side === "buy" ? "\u25B2 Köp"
                                       : m.trade.side === "sell" ? "\u25BC Sälj"
-                                      : m.trade.side === "short" ? "\u25B2 Blanka"
-                                      : "\u25BC Cover"}{" "}
+                                      : m.trade.side === "short" ? "\u25BC Blanka"
+                                      : "\u25B2 Cover"}{" "}
                                     {m.trade.shares} st @ {m.trade.price_per_share.toFixed(2)}
                                   </p>
                                 );
