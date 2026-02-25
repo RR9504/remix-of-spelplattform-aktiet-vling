@@ -32,15 +32,60 @@ function mapFiTransactionType(text: string): string {
   return "other";
 }
 
+// Get Yahoo crumb + cookie for authenticated API calls
+async function getYahooCrumb(): Promise<{ crumb: string; cookie: string } | null> {
+  try {
+    // Step 1: Hit fc.yahoo.com to get cookies
+    const initResp = await fetch("https://fc.yahoo.com", {
+      headers: { "User-Agent": "Mozilla/5.0" },
+      redirect: "manual",
+    });
+    const setCookies = initResp.headers.get("set-cookie") || "";
+    // Extract cookie values we need to send back
+    const cookies = setCookies
+      .split(",")
+      .map((c) => c.split(";")[0].trim())
+      .filter((c) => c.length > 0)
+      .join("; ");
+
+    // Step 2: Get crumb using the cookies
+    const crumbResp = await fetch("https://query2.finance.yahoo.com/v1/test/getcrumb", {
+      headers: {
+        "User-Agent": "Mozilla/5.0",
+        Cookie: cookies,
+      },
+    });
+    if (!crumbResp.ok) {
+      console.error(`Yahoo crumb fetch failed: ${crumbResp.status}`);
+      return null;
+    }
+    const crumb = await crumbResp.text();
+    return { crumb, cookie: cookies };
+  } catch (e) {
+    console.error("Yahoo crumb error:", e);
+    return null;
+  }
+}
+
 // Fetch insider trades from Yahoo Finance
 async function fetchFromYahoo(
   ticker: string,
   exchangeRate: number
 ): Promise<RawInsiderTrade[]> {
-  const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(ticker)}?modules=insiderTransactions`;
+  // Get crumb + cookie first
+  const auth = await getYahooCrumb();
+  if (!auth) {
+    console.error("Could not get Yahoo crumb");
+    return [];
+  }
+
+  const url = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(ticker)}?modules=insiderTransactions&crumb=${encodeURIComponent(auth.crumb)}`;
 
   const resp = await fetch(url, {
-    headers: { "User-Agent": "Mozilla/5.0" },
+    headers: {
+      "User-Agent": "Mozilla/5.0",
+      Cookie: auth.cookie,
+    },
   });
 
   if (!resp.ok) {
