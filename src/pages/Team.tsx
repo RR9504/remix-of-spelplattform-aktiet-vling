@@ -1,12 +1,13 @@
 import { useEffect, useState, useRef } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCompetition } from "@/contexts/CompetitionContext";
 import { Navbar } from "@/components/Navbar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Copy, Check, Users, Crown, Link, Search, UserPlus, Loader2 } from "lucide-react";
+import { Copy, Check, Users, Crown, Link, Search, UserPlus, Loader2, X, LogOut } from "lucide-react";
 import { AchievementShowcase } from "@/components/AchievementShowcase";
 import { toast } from "sonner";
 
@@ -31,11 +32,17 @@ interface ProfileResult {
 export default function TeamPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
+  const { refresh } = useCompetition();
+  const navigate = useNavigate();
   const [team, setTeam] = useState<TeamData | null>(null);
   const [members, setMembers] = useState<MemberData[]>([]);
   const [copied, setCopied] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [removing, setRemoving] = useState<string | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
+  const [confirmLeave, setConfirmLeave] = useState(false);
+  const [leaving, setLeaving] = useState(false);
 
   // Add member search state
   const [searchQuery, setSearchQuery] = useState("");
@@ -125,6 +132,47 @@ export default function TeamPage() {
     setAdding(null);
   };
 
+  const handleRemoveMember = async (profileId: string) => {
+    if (!id) return;
+    setRemoving(profileId);
+
+    const { error } = await supabase
+      .from("team_members")
+      .delete()
+      .eq("team_id", id)
+      .eq("profile_id", profileId);
+
+    if (error) {
+      toast.error("Kunde inte ta bort medlemmen: " + error.message);
+    } else {
+      const member = members.find((m) => m.profile_id === profileId);
+      toast.success(`${member?.profiles?.full_name || "Medlemmen"} borttagen från laget.`);
+      await fetchMembers();
+    }
+    setRemoving(null);
+    setConfirmRemove(null);
+  };
+
+  const handleLeaveTeam = async () => {
+    if (!id || !user) return;
+    setLeaving(true);
+
+    const { error } = await supabase
+      .from("team_members")
+      .delete()
+      .eq("team_id", id)
+      .eq("profile_id", user.id);
+
+    if (error) {
+      toast.error("Kunde inte lämna laget: " + error.message);
+      setLeaving(false);
+    } else {
+      toast.success("Du har lämnat laget.");
+      await refresh();
+      navigate("/");
+    }
+  };
+
   const copyCode = () => {
     if (team?.invite_code) {
       navigator.clipboard.writeText(team.invite_code);
@@ -145,6 +193,7 @@ export default function TeamPage() {
   };
 
   const isCaptain = user?.id === team?.captain_id;
+  const isMember = members.some((m) => m.profile_id === user?.id);
 
   if (loading) {
     return (
@@ -182,6 +231,40 @@ export default function TeamPage() {
               {members.length} {members.length === 1 ? "medlem" : "medlemmar"}
             </p>
           </div>
+          {/* Leave team button for non-captains */}
+          {isMember && !isCaptain && (
+            <div>
+              {confirmLeave ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Lämna laget?</span>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={handleLeaveTeam}
+                    disabled={leaving}
+                  >
+                    {leaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Ja, lämna"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setConfirmLeave(false)}
+                  >
+                    Avbryt
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setConfirmLeave(true)}
+                >
+                  <LogOut className="h-4 w-4 mr-1.5" />
+                  Lämna lag
+                </Button>
+              )}
+            </div>
+          )}
         </div>
 
         <Card>
@@ -210,27 +293,73 @@ export default function TeamPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {members.map((m) => (
-                <div
-                  key={m.profile_id}
-                  className="flex items-center justify-between rounded-lg border p-3"
-                >
-                  <div>
-                    <p className="font-medium">
-                      {m.profiles?.full_name || "Okänd"}
-                      {m.profile_id === team.captain_id && (
-                        <Crown className="inline ml-2 h-4 w-4 text-primary" />
+              {members.map((m) => {
+                const isMemberCaptain = m.profile_id === team.captain_id;
+                const isMe = m.profile_id === user?.id;
+                const showRemove = isCaptain && !isMemberCaptain;
+
+                return (
+                  <div
+                    key={m.profile_id}
+                    className="flex items-center justify-between rounded-lg border p-3"
+                  >
+                    <div>
+                      <p className="font-medium">
+                        {m.profiles?.full_name || "Okänd"}
+                        {isMe && <span className="text-xs text-muted-foreground ml-1">(du)</span>}
+                        {isMemberCaptain && (
+                          <Crown className="inline ml-2 h-4 w-4 text-primary" />
+                        )}
+                      </p>
+                      <p className="text-sm text-muted-foreground">{m.profiles?.email}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {isMemberCaptain && (
+                        <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
+                          Kapten
+                        </span>
                       )}
-                    </p>
-                    <p className="text-sm text-muted-foreground">{m.profiles?.email}</p>
+                      {showRemove && (
+                        confirmRemove === m.profile_id ? (
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              className="h-7 text-xs"
+                              onClick={() => handleRemoveMember(m.profile_id)}
+                              disabled={removing === m.profile_id}
+                            >
+                              {removing === m.profile_id ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                "Ta bort"
+                              )}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-xs"
+                              onClick={() => setConfirmRemove(null)}
+                            >
+                              Avbryt
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                            onClick={() => setConfirmRemove(m.profile_id)}
+                            title="Ta bort från laget"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )
+                      )}
+                    </div>
                   </div>
-                  {m.profile_id === team.captain_id && (
-                    <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
-                      Kapten
-                    </span>
-                  )}
-                </div>
-              ))}
+                );
+              })}
               {members.length === 0 && (
                 <p className="text-muted-foreground text-sm">Inga medlemmar ännu.</p>
               )}

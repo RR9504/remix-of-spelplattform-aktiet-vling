@@ -13,7 +13,14 @@ import { Progress } from "@/components/ui/progress";
 import { TrendingUp, Trophy, Users, UserPlus, ArrowLeft, ArrowRight, Copy, Check, Ticket } from "lucide-react";
 import { toast } from "sonner";
 
-type Path = "choose" | "competition" | "create-team" | "join-team" | "join-competition";
+type Path =
+  | "choose"
+  | "competition"
+  | "create-team"
+  | "join-team"
+  | "join-competition"
+  | "team-created"  // after creating/joining team → ask to join competition
+  ;
 
 export default function Onboarding() {
   const { user } = useAuth();
@@ -39,11 +46,18 @@ export default function Onboarding() {
   // Join competition form
   const [competitionCode, setCompetitionCode] = useState("");
 
+  // State after team created/joined
+  const [currentTeamId, setCurrentTeamId] = useState<string | null>(null);
+  const [currentTeamName, setCurrentTeamName] = useState<string>("");
+
   const [loading, setLoading] = useState(false);
   const [createdInviteCode, setCreatedInviteCode] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const progress = path === "choose" ? 33 : 66;
+  const progress =
+    path === "choose" ? 25
+    : path === "team-created" ? 75
+    : 50;
 
   const handleCreateCompetition = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -104,7 +118,9 @@ export default function Onboarding() {
       });
       toast.success("Lag skapat!");
       await refresh();
-      navigate("/team/" + data.id);
+      setCurrentTeamId(data.id);
+      setCurrentTeamName(teamName);
+      setPath("team-created");
     }
     setLoading(false);
   };
@@ -140,7 +156,9 @@ export default function Onboarding() {
     } else {
       toast.success(`Du gick med i ${team.name}!`);
       await refresh();
-      navigate("/team/" + team.id);
+      setCurrentTeamId(team.id);
+      setCurrentTeamName(team.name);
+      setPath("team-created");
     }
     setLoading(false);
   };
@@ -163,22 +181,25 @@ export default function Onboarding() {
       return;
     }
 
-    // Get user's teams
-    const { data: memberRows } = await supabase
-      .from("team_members")
-      .select("team_id")
-      .eq("profile_id", user.id);
+    // If we have a current team from the flow, use it; otherwise get first team
+    let teamId = currentTeamId;
 
-    const teamIds = (memberRows || []).map((r) => r.team_id);
+    if (!teamId) {
+      const { data: memberRows } = await supabase
+        .from("team_members")
+        .select("team_id")
+        .eq("profile_id", user.id);
 
-    if (teamIds.length === 0) {
-      toast.error("Du behöver ha ett lag först. Skapa eller gå med i ett lag.");
-      setLoading(false);
-      return;
+      const teamIds = (memberRows || []).map((r) => r.team_id);
+
+      if (teamIds.length === 0) {
+        toast.error("Du behöver ha ett lag först. Skapa eller gå med i ett lag.");
+        setLoading(false);
+        return;
+      }
+      teamId = teamIds[0];
     }
 
-    // Auto-join with first team for simplicity
-    const teamId = teamIds[0];
     const compData = comp as any;
     const { error } = await supabase.from("competition_teams").insert({
       competition_id: compData.id,
@@ -453,6 +474,65 @@ export default function Onboarding() {
                   </Button>
                 </div>
               </form>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* After creating/joining a team → prompt to join competition */}
+        {path === "team-created" && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Lag klart!</CardTitle>
+              <CardDescription>
+                Du är nu med i <span className="font-semibold text-foreground">{currentTeamName}</span>. Vill du gå med i en tävling direkt?
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form
+                onSubmit={handleJoinCompetition}
+                className="space-y-4"
+              >
+                <div className="space-y-2">
+                  <Label>Tävlingskod</Label>
+                  <Input
+                    placeholder="abc12345"
+                    value={competitionCode}
+                    onChange={(e) => setCompetitionCode(e.target.value)}
+                    required
+                  />
+                </div>
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? "Söker..." : "Gå med i tävling"} <ArrowRight className="h-4 w-4 ml-1" />
+                </Button>
+              </form>
+
+              <div className="relative my-4">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-card px-2 text-muted-foreground">eller</span>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => navigate(`/team/${currentTeamId}`)}
+                >
+                  <Users className="h-4 w-4 mr-1.5" />
+                  Hantera lag
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => navigate("/competitions")}
+                >
+                  <Trophy className="h-4 w-4 mr-1.5" />
+                  Bläddra tävlingar
+                </Button>
+              </div>
             </CardContent>
           </Card>
         )}

@@ -91,14 +91,16 @@ export function Navbar() {
               </SelectContent>
             </Select>
           )}
-          <div className="text-right hidden sm:block">
-            {activeTeam && (
-              <>
-                <p className="text-xs text-muted-foreground">Lag</p>
-                <p className="text-sm font-semibold">{activeTeam.name}</p>
-              </>
-            )}
-          </div>
+          {activeTeam && (
+            <Link
+              to={`/team/${activeTeam.id}`}
+              className="text-right hidden sm:block hover:opacity-80 transition-opacity"
+              title="Hantera lag"
+            >
+              <p className="text-xs text-muted-foreground">Lag</p>
+              <p className="text-sm font-semibold hover:text-primary transition-colors">{activeTeam.name}</p>
+            </Link>
+          )}
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="ghost" size="icon" className="relative">
