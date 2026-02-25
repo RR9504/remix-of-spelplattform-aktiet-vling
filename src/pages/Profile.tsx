@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompetition } from "@/contexts/CompetitionContext";
@@ -83,8 +83,10 @@ export default function ProfilePage() {
     if (mapping) {
       setActiveTeamId(mapping.team_id);
     }
+    navigate("/");
   };
 
+  const navigate = useNavigate();
   const displayName = fullName || email.split("@")[0] || "Användare";
 
   return (
