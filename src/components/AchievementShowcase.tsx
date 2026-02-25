@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import { getAchievements } from "@/lib/api";
+import { AchievementCelebration } from "@/components/AchievementCelebration";
 import type { Achievement, UserAchievement } from "@/types/trading";
 
 interface AchievementShowcaseProps {
@@ -11,6 +12,7 @@ export function AchievementShowcase({ profileId }: AchievementShowcaseProps) {
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [unlocked, setUnlocked] = useState<UserAchievement[]>([]);
   const [loading, setLoading] = useState(true);
+  const [celebration, setCelebration] = useState<Achievement | null>(null);
 
   useEffect(() => {
     const fetch = async () => {
@@ -43,10 +45,11 @@ export function AchievementShowcase({ profileId }: AchievementShowcaseProps) {
               key={a.id}
               className={`flex flex-col items-center text-center rounded-lg p-3 transition-all ${
                 isUnlocked
-                  ? "bg-primary/10 border border-primary/30"
+                  ? "bg-primary/10 border border-primary/30 cursor-pointer hover:bg-primary/20"
                   : "bg-muted/50 opacity-50"
               }`}
               title={isUnlocked ? `${a.name}: ${a.description}` : "Låst"}
+              onClick={() => isUnlocked && setCelebration(a)}
             >
               <span className="text-2xl mb-1">
                 {isUnlocked ? a.icon : "❓"}
@@ -61,6 +64,14 @@ export function AchievementShowcase({ profileId }: AchievementShowcaseProps) {
       <p className="text-xs text-muted-foreground mt-3 text-center">
         {unlocked.length} / {achievements.length} upplåsta
       </p>
+      {celebration && (
+        <AchievementCelebration
+          icon={celebration.icon}
+          name={celebration.name}
+          description={celebration.description}
+          onDismiss={() => setCelebration(null)}
+        />
+      )}
     </div>
   );
 }
