@@ -57,41 +57,47 @@ export function PortfolioChart({ currentValue, startValue: propStartValue }: Por
     }
     setLoading(true);
     getPortfolioHistory(activeCompetition.id, activeTeam.id).then((snapshots) => {
-      const chartData = snapshots.map((s) => ({
-        date: new Date(s.snapshot_date).toLocaleDateString("sv-SE", { day: "numeric", month: "short" }),
-        value: s.total_value_sek,
-      }));
-
-      // Always ensure at least two points so we get a line, not a dot
-      const startLabel = activeCompetition.start_date
-        ? new Date(activeCompetition.start_date).toLocaleDateString("sv-SE", { day: "numeric", month: "short" })
-        : "Start";
-      const todayLabel = new Date().toLocaleDateString("sv-SE", { day: "numeric", month: "short" });
-      const current = currentValue ?? startValue;
-
-      if (chartData.length === 0) {
-        // No snapshots at all — show start → today
-        chartData.push({ date: startLabel, value: startValue });
-        if (startLabel !== todayLabel) {
-          chartData.push({ date: todayLabel, value: current });
-        } else {
-          chartData.push({ date: "Nu", value: current });
-        }
-      } else if (chartData.length === 1) {
-        // Only one snapshot — prepend start or append today
-        const existing = chartData[0];
-        if (existing.date !== startLabel) {
-          chartData.unshift({ date: startLabel, value: startValue });
-        }
-        if (existing.date !== todayLabel) {
-          chartData.push({ date: todayLabel, value: current });
-        }
+      // Build a map of date → value from actual snapshots
+      const snapshotMap: Record<string, number> = {};
+      for (const s of snapshots) {
+        snapshotMap[s.snapshot_date] = s.total_value_sek;
       }
 
-      // Always append current value as last point if snapshots are stale
-      const lastEntry = chartData[chartData.length - 1];
-      if (lastEntry.date !== todayLabel && lastEntry.date !== "Nu") {
-        chartData.push({ date: todayLabel, value: current });
+      // Determine date range: competition start → today
+      const competitionStart = activeCompetition.start_date
+        ? new Date(activeCompetition.start_date)
+        : new Date();
+      const today = new Date();
+      // Normalize to date-only
+      competitionStart.setHours(0, 0, 0, 0);
+      today.setHours(0, 0, 0, 0);
+
+      // Generate daily data points, carrying forward the last known value
+      const chartData: { date: string; value: number }[] = [];
+      let lastValue = startValue;
+      const cursor = new Date(competitionStart);
+
+      while (cursor <= today) {
+        const isoDate = cursor.toISOString().split("T")[0];
+        if (snapshotMap[isoDate] !== undefined) {
+          lastValue = snapshotMap[isoDate];
+        }
+        chartData.push({
+          date: cursor.toLocaleDateString("sv-SE", { day: "numeric", month: "short" }),
+          value: lastValue,
+        });
+        cursor.setDate(cursor.getDate() + 1);
+      }
+
+      // Update the last point to the live current value
+      const current = currentValue ?? startValue;
+      if (chartData.length > 0) {
+        chartData[chartData.length - 1].value = current;
+      } else {
+        chartData.push({
+          date: today.toLocaleDateString("sv-SE", { day: "numeric", month: "short" }),
+          value: current,
+        });
       }
 
       setData(chartData);

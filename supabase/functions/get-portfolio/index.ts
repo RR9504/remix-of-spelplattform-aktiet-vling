@@ -185,6 +185,23 @@ serve(async (req) => {
     // margin_reserved is NOT separate money — it's already included in cash_balance_sek
     const totalValue = cash + holdingsValue - shortLiabilities;
 
+    // Upsert today's portfolio snapshot so the chart builds up daily
+    const today = new Date().toISOString().split("T")[0];
+    await supabase
+      .from("portfolio_snapshots")
+      .upsert(
+        {
+          competition_id: competitionId,
+          team_id: teamId,
+          snapshot_date: today,
+          total_value_sek: Math.round(totalValue * 100) / 100,
+          cash_sek: Math.round(cash * 100) / 100,
+          holdings_value_sek: Math.round(holdingsValue * 100) / 100,
+        },
+        { onConflict: "competition_id,team_id,snapshot_date" }
+      )
+      .then(() => {});
+
     return new Response(
       JSON.stringify({
         cash,
