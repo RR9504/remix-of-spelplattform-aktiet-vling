@@ -126,7 +126,8 @@ async function fetchFromYahoo(
 // Fetch insider trades from Finansinspektionen
 async function fetchFromFI(
   ticker: string,
-  companyName: string
+  companyName: string,
+  fullName?: string,
 ): Promise<RawInsiderTrade[]> {
   try {
     // Search last 12 months
@@ -171,7 +172,7 @@ async function fetchFromFI(
     }
 
     const html = await resp.text();
-    return parseFiHtml(html, ticker);
+    return parseFiHtml(html, ticker, fullName);
   } catch (e) {
     console.error("FI scraping error:", e);
     return [];
@@ -179,7 +180,8 @@ async function fetchFromFI(
 }
 
 // Parse FI HTML response to extract insider trades
-function parseFiHtml(html: string, ticker: string): RawInsiderTrade[] {
+// fullName is used to filter results to the correct emittent (e.g. "AB Volvo (publ)" vs "Volvo Car AB")
+function parseFiHtml(html: string, ticker: string, fullName?: string): RawInsiderTrade[] {
   const trades: RawInsiderTrade[] = [];
 
   // Extract tbody content
@@ -221,6 +223,24 @@ function parseFiHtml(html: string, ticker: string): RawInsiderTrade[] {
     // 8: ISIN, 9: Transaktionsdatum, 10: Volym, 11: Volymsenhet,
     // 12: Pris, 13: Valuta, 14: Status, 15: Detaljer
     if (cells.length < 13) continue;
+
+    // Filter by emittent if fullName is provided
+    // Strip "AB", "Aktiebolaget", "(publ)", "ser. X" to get core name
+    // "AB Volvo (publ)" → "volvo", "Aktiebolaget Volvo" → "volvo", "Volvo Car AB (publ)" → "volvo car"
+    if (fullName) {
+      const strip = (s: string) => s.toLowerCase()
+        .replace(/\baktiebolaget\b/gi, "")
+        .replace(/\bab\b/gi, "")
+        .replace(/\(publ\)/gi, "")
+        .replace(/\bser\.\s*[a-z]\b/gi, "")
+        .replace(/[,;.()]/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+      const coreFull = strip(fullName);
+      const coreEmittent = strip(cells[1]);
+      // Require exact core match (handles "volvo" vs "volvo car")
+      if (coreFull !== coreEmittent) continue;
+    }
 
     const personName = cells[2] || "Okänd";
     const position = cells[3] || null;
@@ -292,6 +312,7 @@ serve(async (req) => {
     if (isSwedish) {
       // Get company name: try stock_price_cache first, then Yahoo v8 chart API
       let companyName = "";
+      let fullName = ""; // full legal name for emittent filtering
       const { data: stockCache } = await supabase
         .from("stock_price_cache")
         .select("stock_name")
@@ -299,22 +320,24 @@ serve(async (req) => {
         .single();
       companyName = stockCache?.stock_name || "";
 
-      // Always try Yahoo v8 to get a good name for FI search
-      if (!companyName || companyName.length < 3) {
-        try {
-          const yahooUrl = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=1d`;
-          const yahooResp = await fetch(yahooUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
-          if (yahooResp.ok) {
-            const yahooData = await yahooResp.json();
-            companyName = yahooData?.chart?.result?.[0]?.meta?.shortName || companyName;
+      // Always try Yahoo v8 to get both shortName and longName
+      try {
+        const yahooUrl = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=1d`;
+        const yahooResp = await fetch(yahooUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
+        if (yahooResp.ok) {
+          const yahooData = await yahooResp.json();
+          const meta = yahooData?.chart?.result?.[0]?.meta;
+          if (!companyName || companyName.length < 3) {
+            companyName = meta?.shortName || companyName;
           }
-        } catch { /* ignore */ }
-      }
+          fullName = meta?.longName || meta?.shortName || "";
+        }
+      } catch { /* ignore */ }
 
       if (!companyName) companyName = ticker.replace(".ST", "");
 
       // Try FI first
-      trades = await fetchFromFI(ticker, companyName);
+      trades = await fetchFromFI(ticker, companyName, fullName);
 
       // Fallback to Yahoo if FI fails
       if (trades.length === 0) {
