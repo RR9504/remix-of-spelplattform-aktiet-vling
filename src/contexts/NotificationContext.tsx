@@ -3,7 +3,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./AuthContext";
 import { getNotifications, markNotificationsRead } from "@/lib/api";
 import { toast } from "sonner";
+import { AchievementCelebration } from "@/components/AchievementCelebration";
 import type { Notification } from "@/types/trading";
+
+interface AchievementCelebrationData {
+  icon: string;
+  name: string;
+  description: string;
+}
 
 interface NotificationContextType {
   notifications: Notification[];
@@ -29,6 +36,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [celebration, setCelebration] = useState<AchievementCelebrationData | null>(null);
 
   const refresh = useCallback(async () => {
     if (!user) {
@@ -78,7 +86,15 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         (payload) => {
           const newNotif = payload.new as Notification;
           setNotifications((prev) => [newNotif, ...prev]);
-          toast(newNotif.title, { description: newNotif.body });
+          if (newNotif.type === "achievement_unlocked") {
+            // Extract icon from title (format: "🏆 Achievement Name")
+            const iconMatch = newNotif.title.match(/^(\p{Emoji_Presentation}|\p{Extended_Pictographic})\s*/u);
+            const icon = iconMatch ? iconMatch[1] : "🏆";
+            const name = iconMatch ? newNotif.title.slice(iconMatch[0].length) : newNotif.title;
+            setCelebration({ icon, name, description: newNotif.body });
+          } else {
+            toast(newNotif.title, { description: newNotif.body });
+          }
         }
       )
       .subscribe();
@@ -95,6 +111,14 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       value={{ notifications, unreadCount, loading, markAsRead, markAllAsRead, refresh }}
     >
       {children}
+      {celebration && (
+        <AchievementCelebration
+          icon={celebration.icon}
+          name={celebration.name}
+          description={celebration.description}
+          onDismiss={() => setCelebration(null)}
+        />
+      )}
     </NotificationContext.Provider>
   );
 }
