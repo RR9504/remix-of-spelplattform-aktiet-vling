@@ -61,9 +61,39 @@ export function PortfolioChart({ currentValue, startValue: propStartValue }: Por
         date: new Date(s.snapshot_date).toLocaleDateString("sv-SE", { day: "numeric", month: "short" }),
         value: s.total_value_sek,
       }));
+
+      // Always ensure at least two points so we get a line, not a dot
+      const startLabel = activeCompetition.start_date
+        ? new Date(activeCompetition.start_date).toLocaleDateString("sv-SE", { day: "numeric", month: "short" })
+        : "Start";
+      const todayLabel = new Date().toLocaleDateString("sv-SE", { day: "numeric", month: "short" });
+      const current = currentValue ?? startValue;
+
       if (chartData.length === 0) {
-        chartData.push({ date: "Idag", value: startValue });
+        // No snapshots at all — show start → today
+        chartData.push({ date: startLabel, value: startValue });
+        if (startLabel !== todayLabel) {
+          chartData.push({ date: todayLabel, value: current });
+        } else {
+          chartData.push({ date: "Nu", value: current });
+        }
+      } else if (chartData.length === 1) {
+        // Only one snapshot — prepend start or append today
+        const existing = chartData[0];
+        if (existing.date !== startLabel) {
+          chartData.unshift({ date: startLabel, value: startValue });
+        }
+        if (existing.date !== todayLabel) {
+          chartData.push({ date: todayLabel, value: current });
+        }
       }
+
+      // Always append current value as last point if snapshots are stale
+      const lastEntry = chartData[chartData.length - 1];
+      if (lastEntry.date !== todayLabel && lastEntry.date !== "Nu") {
+        chartData.push({ date: todayLabel, value: current });
+      }
+
       setData(chartData);
       setLoading(false);
     });
