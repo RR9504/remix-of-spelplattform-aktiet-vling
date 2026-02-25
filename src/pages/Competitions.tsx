@@ -362,14 +362,20 @@ export default function Competitions() {
                       </div>
                     </div>
                     {status !== "ended" && (
-                      <Button
-                        variant="outline"
-                        className="w-full"
-                        onClick={() => setJoining(comp)}
-                        disabled={comp.max_teams !== null && (comp.team_count ?? 0) >= comp.max_teams}
-                      >
-                        Gå med
-                      </Button>
+                      myCompetitions.some((mc) => mc.id === comp.id) ? (
+                        <Badge variant="outline" className="w-full justify-center py-2 text-xs text-muted-foreground">
+                          Redan med
+                        </Badge>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          className="w-full"
+                          onClick={() => setJoining(comp)}
+                          disabled={comp.max_teams !== null && (comp.team_count ?? 0) >= comp.max_teams}
+                        >
+                          Gå med
+                        </Button>
+                      )
                     )}
                   </CardContent>
                 </Card>
