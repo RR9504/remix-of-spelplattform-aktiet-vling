@@ -13,7 +13,7 @@ CREATE TABLE insider_trades_cache (
 
 CREATE INDEX idx_insider_ticker ON insider_trades_cache(ticker);
 CREATE INDEX idx_insider_fetched ON insider_trades_cache(fetched_at);
-CREATE UNIQUE INDEX idx_insider_unique ON insider_trades_cache(ticker, transaction_date, insider_name, transaction_type);
+CREATE UNIQUE INDEX idx_insider_unique ON insider_trades_cache(ticker, transaction_date, insider_name, transaction_type, shares);
 
 ALTER TABLE insider_trades_cache ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Anyone can read insider trades"

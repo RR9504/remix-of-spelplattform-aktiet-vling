@@ -138,22 +138,31 @@ async function fetchFromFI(
     const dateTo = now.toISOString().split("T")[0];
     const dateFrom = oneYearAgo.toISOString().split("T")[0];
 
-    // Clean company name for FI search
-    // stock_name examples: "Volvo B", "Volvo, AB ser. B", "H & M Hennes & Mauritz AB ser. B"
-    // ticker fallback: "VOLV-B" → "VOLV"
-    // FI search is fuzzy, so just extract the main company name part
-    // Clean company name for FI search
-    // Examples: "Volvo, AB ser. B" → "Volvo", "Ericsson B" → "Ericsson"
-    const cleanName = companyName
-      .replace(/,?\s+(ser\.\s*)?[A-Z]$/i, "")  // " ser. B", " B"
-      .replace(/,?\s+AB(\s+\(publ\))?$/i, "")  // " AB", " AB (publ)"
-      .replace(/-[A-Z]$/i, "")                  // "VOLV-B" → "VOLV"
-      .replace(/[,;.]+$/, "")                   // trailing punctuation
-      .trim();
+    // For FI search: use fullName if available to get precise results
+    // "AB Volvo (publ)" → FI knows "Aktiebolaget Volvo", so search "Aktiebolaget Volvo"
+    // Convert "AB X" → "Aktiebolaget X" since FI uses full form
+    let searchName = "";
+    if (fullName) {
+      searchName = fullName
+        .replace(/\(publ\)/gi, "")
+        .replace(/\bAB\b/g, "Aktiebolaget")
+        .replace(/[,;.]+/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+    if (!searchName || searchName.length < 3) {
+      // Fallback: clean companyName
+      searchName = companyName
+        .replace(/,?\s+(ser\.\s*)?[A-Z]$/i, "")
+        .replace(/,?\s+AB(\s+\(publ\))?$/i, "")
+        .replace(/-[A-Z]$/i, "")
+        .replace(/[,;.]+$/, "")
+        .trim();
+    }
 
     const params = new URLSearchParams({
       SearchFunctionType: "Insyn",
-      Utgivare: cleanName,
+      Utgivare: searchName,
       "Transaktionsdatum.From": dateFrom,
       "Transaktionsdatum.To": dateTo,
     });
@@ -189,14 +198,12 @@ function parseFiHtml(html: string, ticker: string, fullName?: string): RawInside
   if (!tbodyMatch) return trades;
 
   const tbody = tbodyMatch[1];
-  const rowRegex = /<tr>([\s\S]*?)<\/tr>/gi;
-  const cellRegex = /<td>([\s\S]*?)<\/td>/gi;
-  const tagRegex = /<[^>]+>/g;
 
-  // Decode HTML entities
+  // Decode HTML entities and normalize whitespace
   function decodeEntities(s: string): string {
     return s
       .replace(/&#160;/g, " ")
+      .replace(/\u00a0/g, " ")
       .replace(/&#228;/g, "ä")
       .replace(/&#246;/g, "ö")
       .replace(/&#229;/g, "å")
@@ -206,15 +213,11 @@ function parseFiHtml(html: string, ticker: string, fullName?: string): RawInside
       .replace(/&amp;/g, "&");
   }
 
-  let rowMatch;
-  while ((rowMatch = rowRegex.exec(tbody)) !== null) {
+  for (const rowMatch of tbody.matchAll(/<tr>([\s\S]*?)<\/tr>/gi)) {
     const rowHtml = rowMatch[1];
     const cells: string[] = [];
-    let cellMatch;
-
-    cellRegex.lastIndex = 0;
-    while ((cellMatch = cellRegex.exec(rowHtml)) !== null) {
-      cells.push(decodeEntities(cellMatch[1].replace(tagRegex, "").trim()));
+    for (const cellMatch of rowHtml.matchAll(/<td>([\s\S]*?)<\/td>/gi)) {
+      cells.push(decodeEntities(cellMatch[1].replace(/<[^>]+>/g, "").trim()));
     }
 
     // FI columns:
@@ -253,8 +256,10 @@ function parseFiHtml(html: string, ticker: string, fullName?: string): RawInside
     if (!dateStr || !dateStr.match(/^\d{4}-\d{2}-\d{2}/)) continue;
     const formattedDate = dateStr.substring(0, 10);
 
-    const volume = parseInt(volumeStr.replace(/\s/g, "").replace(/,/g, ""), 10) || null;
-    const price = parseFloat(priceStr.replace(/\s/g, "").replace(/,/g, ".")) || null;
+    // Strip all whitespace including non-breaking spaces (\u00a0)
+    const stripWs = (s: string) => s.replace(/[\s\u00a0\u202f\u2009]+/g, "");
+    const volume = parseInt(stripWs(volumeStr).replace(/,/g, ""), 10) || null;
+    const price = parseFloat(stripWs(priceStr).replace(/,/g, ".")) || null;
     const valueSek = volume && price ? Math.round(volume * price) : null;
 
     trades.push({
@@ -384,7 +389,7 @@ serve(async (req) => {
 
       await supabase
         .from("insider_trades_cache")
-        .upsert(rows, { onConflict: "ticker,transaction_date,insider_name,transaction_type" });
+        .upsert(rows, { onConflict: "ticker,transaction_date,insider_name,transaction_type,shares" });
     }
 
     // 4. Return fresh data — try cache first, fall back to in-memory trades
