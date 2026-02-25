@@ -6,8 +6,8 @@ export function MarketStatus() {
 
   return (
     <div className="flex gap-4">
-      <StatusBadge label="Nasdaq Stockholm" open={seOpen} hours="09:00–17:30" flag="🇸🇪" />
-      <StatusBadge label="NYSE/NASDAQ" open={usOpen} hours="14:00–22:00" flag="🇺🇸" />
+      <StatusBadge label="Nasdaq Stockholm" open={seOpen} hours="09:00–17:25" flag="🇸🇪" />
+      <StatusBadge label="NYSE/NASDAQ" open={usOpen} hours="15:30–22:00" flag="🇺🇸" />
     </div>
   );
 }
