@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#0a0b0f"/>
+  <rect x="24" y="24" width="464" height="464" rx="80" fill="#0f1117"/>
+  <!-- Trending up line -->
+  <polyline points="120,340 200,280 270,310 390,170" fill="none" stroke="#6366f1" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Arrow head -->
+  <polyline points="330,170 390,170 390,230" fill="none" stroke="#6366f1" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Glow effect -->
+  <polyline points="120,340 200,280 270,310 390,170" fill="none" stroke="#6366f1" stroke-width="40" stroke-linecap="round" stroke-linejoin="round" opacity="0.2"/>
+</svg>

@@ -92,7 +92,7 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <main className="container py-6 space-y-6 max-w-2xl">
+      <main className="container py-6 pb-20 md:pb-6 space-y-6 max-w-2xl">
         {/* User info */}
         <Card>
           <CardHeader>

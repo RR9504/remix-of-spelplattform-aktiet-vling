@@ -241,7 +241,7 @@ const StockDetailPage = () => {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <main className="container py-6 space-y-6">
+      <main className="container py-6 pb-20 md:pb-6 space-y-6">
         {loading ? (
           <div className="flex justify-center py-16">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />

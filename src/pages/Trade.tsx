@@ -6,7 +6,7 @@ const Trade = () => {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <main className="container py-6 space-y-6">
+      <main className="container py-6 pb-20 md:pb-6 space-y-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold">Handla</h1>

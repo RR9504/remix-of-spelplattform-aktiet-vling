@@ -66,7 +66,7 @@ const History = () => {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <main className="container py-6 space-y-6">
+      <main className="container py-6 pb-20 md:pb-6 space-y-6">
         <div>
           <h1 className="text-2xl font-bold">Transaktionshistorik</h1>
           <p className="text-muted-foreground text-sm">Alla genomförda affärer</p>

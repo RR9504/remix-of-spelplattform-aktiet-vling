@@ -249,7 +249,7 @@ export default function Competitions() {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <main className="container py-6 space-y-6">
+      <main className="container py-6 pb-20 md:pb-6 space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">Tävlingar</h1>

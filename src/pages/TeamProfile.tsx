@@ -29,7 +29,7 @@ const TeamProfilePage = () => {
     return (
       <div className="min-h-screen bg-background">
         <Navbar />
-        <main className="container py-6 flex justify-center">
+        <main className="container py-6 pb-20 md:pb-6 flex justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </main>
       </div>
@@ -40,7 +40,7 @@ const TeamProfilePage = () => {
     return (
       <div className="min-h-screen bg-background">
         <Navbar />
-        <main className="container py-6">
+        <main className="container py-6 pb-20 md:pb-6">
           <p className="text-muted-foreground text-center py-16">Lag hittades inte</p>
         </main>
       </div>
@@ -55,7 +55,7 @@ const TeamProfilePage = () => {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <main className="container py-6 space-y-6">
+      <main className="container py-6 pb-20 md:pb-6 space-y-6">
         <div className="flex items-center gap-3">
           <Users className="h-8 w-8 text-primary" />
           <div>
