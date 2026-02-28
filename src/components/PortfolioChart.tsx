@@ -13,7 +13,7 @@ import {
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatSEK } from "@/lib/mockData";
-import { getPortfolioHistory, getComparisonData } from "@/lib/api";
+import { getPortfolioHistory, getComparisonData, fetchBenchmark } from "@/lib/api";
 import { useCompetition } from "@/contexts/CompetitionContext";
 import type { ComparisonData } from "@/types/trading";
 
@@ -108,16 +108,36 @@ export function PortfolioChart({ currentValue, startValue: propStartValue }: Por
   useEffect(() => {
     if (mode === "compare" && !comparisonData && activeCompetition && activeTeam) {
       setComparisonLoading(true);
-      getComparisonData(activeCompetition.id, activeTeam.id).then((data) => {
-        setComparisonData(data);
-        if (data) {
-          // Show all teams + benchmark by default
-          const ids = new Set(data.teams.map((t) => t.team_id));
-          ids.add("benchmark");
-          setVisibleTeams(ids);
-        }
-        setComparisonLoading(false);
-      });
+      // Load team comparison data instantly (client-side, no edge function)
+      getComparisonData(activeCompetition.id, activeTeam.id)
+        .then((data) => {
+          setComparisonData(data);
+          if (data) {
+            const ids = new Set(data.teams.map((t) => t.team_id));
+            if (data.benchmark.snapshots.length > 0) ids.add("benchmark");
+            setVisibleTeams(ids);
+          }
+          setComparisonLoading(false);
+
+          // Lazy-load benchmark via edge function if not cached
+          if (data && data.benchmark.snapshots.length === 0) {
+            fetchBenchmark(activeCompetition.id, activeTeam.id).then((benchSnapshots) => {
+              if (benchSnapshots.length > 0) {
+                setComparisonData((prev) =>
+                  prev ? { ...prev, benchmark: { name: "OMXS30", snapshots: benchSnapshots } } : prev
+                );
+                setVisibleTeams((prev) => {
+                  const next = new Set(prev);
+                  next.add("benchmark");
+                  return next;
+                });
+              }
+            });
+          }
+        })
+        .catch(() => {
+          setComparisonLoading(false);
+        });
     }
   }, [mode, activeCompetition?.id, activeTeam?.id]);
 

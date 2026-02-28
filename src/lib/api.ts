@@ -195,40 +195,14 @@ export async function getPortfolio(
 
     const totalValue = cash + holdingsValue - shortLiabilities;
 
-    // Fire-and-forget: refresh stale prices via edge function
-    const staleTickers = allTickers.filter((t) => {
-      const c = priceMap[t];
-      if (!c) return true;
-      return (Date.now() - new Date(c.updated_at).getTime()) > STALE_MS;
-    });
-    if (staleTickers.length > 0) {
-      getAuthHeaders().then((headers) => {
-        for (const ticker of staleTickers) {
-          fetch(
-            `${SUPABASE_URL}/functions/v1/fetch-stock-price?ticker=${encodeURIComponent(ticker)}`,
-            { headers }
-          ).catch(() => {});
-        }
-      }).catch(() => {});
-    }
-
-    // Fire-and-forget: upsert today's snapshot
-    const today = new Date().toISOString().split("T")[0];
-    supabase
-      .from("portfolio_snapshots")
-      .upsert(
-        {
-          competition_id: competitionId,
-          team_id: teamId,
-          snapshot_date: today,
-          total_value_sek: Math.round(totalValue * 100) / 100,
-          cash_sek: Math.round(cash * 100) / 100,
-          holdings_value_sek: Math.round(holdingsValue * 100) / 100,
-        },
-        { onConflict: "competition_id,team_id,snapshot_date" }
-      )
-      .then(() => {})
-      .catch(() => {});
+    // Fire-and-forget: call edge function in background for side effects
+    // (snapshot upsert requires service role, stale price refresh triggers Yahoo API)
+    getAuthHeaders().then((headers) => {
+      fetch(
+        `${SUPABASE_URL}/functions/v1/get-portfolio?competition_id=${competitionId}&team_id=${teamId}`,
+        { headers }
+      ).catch(() => {});
+    }).catch(() => {});
 
     return {
       cash,
@@ -542,19 +516,171 @@ export async function getInsiderTrades(ticker: string): Promise<InsiderTransacti
 
 // --- Comparison Chart ---
 
+/**
+ * Client-side comparison data — bypasses edge function cold start.
+ * Returns team comparison data instantly. Benchmark is loaded separately.
+ */
 export async function getComparisonData(
   competitionId: string,
   teamId: string
 ): Promise<ComparisonData | null> {
+  try {
+    // All DB queries in parallel
+    const [compRes, ctRes, snapshotsRes, holdingsRes, shortsRes] = await Promise.all([
+      supabase
+        .from("competitions")
+        .select("initial_balance, start_date, end_date")
+        .eq("id", competitionId)
+        .single(),
+      supabase
+        .from("competition_teams")
+        .select("team_id, cash_balance_sek, margin_reserved_sek, teams(name)")
+        .eq("competition_id", competitionId),
+      supabase
+        .from("portfolio_snapshots")
+        .select("team_id, snapshot_date, total_value_sek")
+        .eq("competition_id", competitionId)
+        .order("snapshot_date", { ascending: true }),
+      supabase
+        .from("team_holdings")
+        .select("*")
+        .eq("competition_id", competitionId),
+      supabase
+        .from("short_positions")
+        .select("*")
+        .eq("competition_id", competitionId)
+        .is("closed_at", null),
+    ]);
+
+    const competition = compRes.data as any;
+    if (!competition) return null;
+
+    const competitionTeams = (ctRes.data || []) as any[];
+    if (competitionTeams.length === 0) return null;
+
+    const snapshots = (snapshotsRes.data || []) as any[];
+    const allHoldings = (holdingsRes.data || []) as any[];
+    const allShorts = (shortsRes.data || []) as any[];
+
+    const startValue = Number(competition.initial_balance);
+
+    // Fetch prices for all tickers
+    const holdingTickers = [...new Set(allHoldings.map((h: any) => h.ticker))];
+    const shortTickers = [...new Set(allShorts.map((s: any) => s.ticker))];
+    const allTickers = [...new Set([...holdingTickers, ...shortTickers])];
+    const priceMap: Record<string, number> = {};
+    if (allTickers.length > 0) {
+      const { data: prices } = await supabase
+        .from("stock_price_cache")
+        .select("ticker, price_sek")
+        .in("ticker", allTickers);
+      for (const p of (prices || []) as any[]) {
+        priceMap[p.ticker] = Number(p.price_sek);
+      }
+    }
+
+    const today = new Date().toISOString().split("T")[0];
+
+    // Build team data with historical snapshots + live today value
+    const teams = competitionTeams.map((ct: any) => {
+      const teamSnapshots = snapshots
+        .filter((s: any) => s.team_id === ct.team_id)
+        .map((s: any) => ({
+          date: s.snapshot_date,
+          value: Number(s.total_value_sek),
+          return_percent: startValue > 0
+            ? Math.round(((Number(s.total_value_sek) - startValue) / startValue) * 10000) / 100
+            : 0,
+        }));
+
+      // Compute live value
+      const cash = Number(ct.cash_balance_sek);
+      const teamHoldings = allHoldings.filter((h: any) => h.team_id === ct.team_id);
+      let holdingsValue = 0;
+      for (const h of teamHoldings) {
+        const priceSek = priceMap[h.ticker] ?? Number(h.avg_cost_per_share_sek);
+        holdingsValue += Number(h.total_shares) * priceSek;
+      }
+      const teamShorts = allShorts.filter((s: any) => s.team_id === ct.team_id);
+      let shortLiabilities = 0;
+      for (const s of teamShorts) {
+        const priceSek = priceMap[s.ticker] ?? Number(s.entry_price_sek);
+        shortLiabilities += Number(s.shares) * priceSek;
+      }
+      const liveValue = cash + holdingsValue - shortLiabilities;
+      const liveReturn = startValue > 0
+        ? Math.round(((liveValue - startValue) / startValue) * 10000) / 100
+        : 0;
+
+      // Add/replace today's data point with live value
+      const lastSnapshot = teamSnapshots[teamSnapshots.length - 1];
+      if (lastSnapshot && lastSnapshot.date === today) {
+        lastSnapshot.value = liveValue;
+        lastSnapshot.return_percent = liveReturn;
+      } else {
+        teamSnapshots.push({
+          date: today,
+          value: Math.round(liveValue * 100) / 100,
+          return_percent: liveReturn,
+        });
+      }
+
+      return {
+        team_id: ct.team_id,
+        team_name: (ct.teams as any)?.name || "Okänt lag",
+        snapshots: teamSnapshots,
+      };
+    });
+
+    // Load benchmark from cache if available
+    const benchmarkCacheKey = `sa_benchmark_${competitionId}`;
+    let benchmarkSnapshots: { date: string; return_percent: number }[] = [];
+    try {
+      const raw = localStorage.getItem(benchmarkCacheKey);
+      if (raw) {
+        const { data, ts } = JSON.parse(raw);
+        if (Date.now() - ts < 60 * 60 * 1000) benchmarkSnapshots = data; // 1h TTL
+      }
+    } catch {}
+
+    return {
+      teams,
+      benchmark: { name: "OMXS30", snapshots: benchmarkSnapshots },
+      start_value: startValue,
+      my_team_id: teamId,
+    };
+  } catch (err) {
+    console.error("getComparisonData error:", err);
+    return null;
+  }
+}
+
+/**
+ * Fetches OMXS30 benchmark data via edge function (requires server-side Yahoo Finance call).
+ * Caches result in localStorage for 1 hour.
+ */
+export async function fetchBenchmark(
+  competitionId: string,
+  teamId: string
+): Promise<{ date: string; return_percent: number }[]> {
   try {
     const headers = await getAuthHeaders();
     const res = await fetch(
       `${SUPABASE_URL}/functions/v1/get-comparison-data?competition_id=${competitionId}&team_id=${teamId}`,
       { headers }
     );
-    if (!res.ok) return null;
-    return await res.json();
+    if (!res.ok) return [];
+    const data = await res.json();
+    const snapshots = data?.benchmark?.snapshots || [];
+    // Cache for next time
+    try {
+      localStorage.setItem(
+        `sa_benchmark_${competitionId}`,
+        JSON.stringify({ data: snapshots, ts: Date.now() })
+      );
+    } catch {}
+    return snapshots;
   } catch {
-    return null;
+    return [];
   }
 }
