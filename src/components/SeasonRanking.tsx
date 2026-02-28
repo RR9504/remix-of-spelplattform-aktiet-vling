@@ -59,7 +59,7 @@ export function SeasonRanking() {
                   {entry.team_name}
                 </Link>
               </p>
-              <div className="flex gap-3 text-xs text-muted-foreground">
+              <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
                 <span>{entry.competitions} tävlingar</span>
                 <span>{entry.wins} segrar</span>
                 <span>{entry.podiums} podier</span>

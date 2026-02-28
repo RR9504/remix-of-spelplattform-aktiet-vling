@@ -206,7 +206,7 @@ export function WeeklyHighlights() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="relative overflow-hidden rounded-xl border bg-card p-8"
+          className="relative overflow-hidden rounded-xl border bg-card p-5 sm:p-8"
         >
           <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-primary/10 blur-2xl" />
           <div className="flex items-center gap-3 mb-4">
@@ -215,7 +215,7 @@ export function WeeklyHighlights() {
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Veckans Raket</p>
-              <p className="text-xl font-bold">Bäst presterande aktie</p>
+              <p className="text-xl sm:text-2xl font-bold">Bäst presterande aktie</p>
             </div>
           </div>
           <div className="mt-4 space-y-2">
@@ -223,7 +223,7 @@ export function WeeklyHighlights() {
               <span className="font-mono text-2xl font-bold">{rocket.ticker}</span>
               <span className="text-muted-foreground">{rocket.stock_name}</span>
             </div>
-            <p className={`text-3xl font-bold font-mono ${rocket.change_percent >= 0 ? "text-gain" : "text-loss"}`}>
+            <p className={`text-2xl sm:text-3xl font-bold font-mono ${rocket.change_percent >= 0 ? "text-gain" : "text-loss"}`}>
               {rocket.change_percent >= 0 ? "+" : ""}{rocket.change_percent}%
             </p>
             <p className="text-sm text-muted-foreground">
@@ -238,7 +238,7 @@ export function WeeklyHighlights() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.15 }}
-          className="relative overflow-hidden rounded-xl border bg-card p-8"
+          className="relative overflow-hidden rounded-xl border bg-card p-5 sm:p-8"
         >
           <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-yellow-400/10 blur-2xl" />
           <div className="flex items-center gap-3 mb-4">
@@ -247,12 +247,12 @@ export function WeeklyHighlights() {
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Ledande laget</p>
-              <p className="text-xl font-bold">Bästa totalavkastning</p>
+              <p className="text-xl sm:text-2xl font-bold">Bästa totalavkastning</p>
             </div>
           </div>
           <div className="mt-4 space-y-2">
             <p className="text-2xl font-bold">{winner.team_name}</p>
-            <p className={`text-3xl font-bold font-mono ${winner.return_percent >= 0 ? "text-gain" : "text-loss"}`}>
+            <p className={`text-2xl sm:text-3xl font-bold font-mono ${winner.return_percent >= 0 ? "text-gain" : "text-loss"}`}>
               {winner.return_percent >= 0 ? "+" : ""}{winner.return_percent}%
             </p>
             <p className="text-sm text-muted-foreground">
@@ -267,7 +267,7 @@ export function WeeklyHighlights() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.3 }}
-          className="relative overflow-hidden rounded-xl border bg-card p-8 md:col-span-2"
+          className="relative overflow-hidden rounded-xl border bg-card p-5 sm:p-8 md:col-span-2"
         >
           <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-primary/10 blur-2xl" />
           <div className="flex items-center gap-3 mb-4">
@@ -280,7 +280,7 @@ export function WeeklyHighlights() {
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Veckans största affär</p>
-              <p className="text-xl font-bold">
+              <p className="text-xl sm:text-2xl font-bold">
                 {biggestTrade.side === "buy" ? "Köp" : "Sälj"} av {biggestTrade.ticker}
               </p>
             </div>
@@ -290,7 +290,7 @@ export function WeeklyHighlights() {
               <span className="font-mono text-2xl font-bold">{biggestTrade.shares} st</span>
               <span className="text-muted-foreground">{biggestTrade.stock_name}</span>
             </div>
-            <p className="text-3xl font-bold font-mono">{formatSEK(biggestTrade.total_sek)}</p>
+            <p className="text-2xl sm:text-3xl font-bold font-mono">{formatSEK(biggestTrade.total_sek)}</p>
             <p className="text-sm text-muted-foreground">
               Av <span className="font-semibold text-foreground">{biggestTrade.team_name}</span>
             </p>

@@ -74,12 +74,13 @@ export function PendingOrdersList() {
   }
 
   return (
-    <div className="rounded-xl border bg-card p-6">
+    <div className="rounded-xl border bg-card p-4 sm:p-6">
       <h2 className="text-lg font-semibold mb-4">Ordrar</h2>
 
       {pendingOrders.length > 0 && (
         <>
           <h3 className="text-sm font-medium text-muted-foreground mb-2">Aktiva ordrar</h3>
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -132,12 +133,14 @@ export function PendingOrdersList() {
               ))}
             </TableBody>
           </Table>
+          </div>
         </>
       )}
 
       {recentOrders.length > 0 && (
         <>
           <h3 className="text-sm font-medium text-muted-foreground mb-2 mt-4">Senaste avslutade</h3>
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -177,6 +180,7 @@ export function PendingOrdersList() {
               ))}
             </TableBody>
           </Table>
+          </div>
         </>
       )}
     </div>

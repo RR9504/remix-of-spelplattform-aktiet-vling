@@ -200,10 +200,10 @@ export function PortfolioChart({ currentValue, startValue: propStartValue }: Por
 
   return (
     <div className="rounded-xl border bg-card p-6">
-      <div className="mb-6 flex items-end justify-between">
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
           <p className="text-sm text-muted-foreground">Portföljvärde</p>
-          <p className="text-3xl font-bold font-mono tracking-tight">{formatSEK(displayValue)}</p>
+          <p className="text-2xl sm:text-3xl font-bold font-mono tracking-tight">{formatSEK(displayValue)}</p>
           <p className={`text-sm font-medium mt-1 ${isPositive ? "text-gain" : "text-loss"}`}>
             {isPositive ? "+" : ""}
             {formatSEK(returnAmount)} ({isPositive ? "+" : ""}

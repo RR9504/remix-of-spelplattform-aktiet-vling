@@ -76,7 +76,7 @@ export function StockSearch() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <div className="text-right">
+              <div className="text-right hidden sm:block">
                 <p className="text-xs text-muted-foreground">{stock.exchange}</p>
                 <p className="text-xs text-muted-foreground">{stock.currency}</p>
               </div>

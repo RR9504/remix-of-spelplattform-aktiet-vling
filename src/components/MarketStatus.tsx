@@ -5,7 +5,7 @@ export function MarketStatus() {
   const usOpen = isMarketOpen('US');
 
   return (
-    <div className="flex gap-4">
+    <div className="flex flex-col sm:flex-row gap-2">
       <StatusBadge label="Nasdaq Stockholm" open={seOpen} hours="09:00–17:30" flag="🇸🇪" />
       <StatusBadge label="NYSE/NASDAQ" open={usOpen} hours="15:30–22:00" flag="🇺🇸" />
     </div>
@@ -14,7 +14,7 @@ export function MarketStatus() {
 
 function StatusBadge({ label, open, hours, flag }: { label: string; open: boolean; hours: string; flag: string }) {
   return (
-    <div className="flex items-center gap-2 rounded-lg border bg-card px-4 py-3">
+    <div className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2 sm:px-4 sm:py-3">
       <span className="text-lg">{flag}</span>
       <div>
         <p className="text-sm font-medium">{label}</p>

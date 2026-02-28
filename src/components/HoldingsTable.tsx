@@ -15,7 +15,7 @@ export function HoldingsTable({ holdings, shortPositions, totalValue }: Holdings
 
   if (holdings.length === 0 && !hasShorts) {
     return (
-      <div className="rounded-xl border bg-card p-6">
+      <div className="rounded-xl border bg-card p-4 sm:p-6">
         <h2 className="text-lg font-semibold mb-4">Innehav</h2>
         <p className="text-muted-foreground text-sm text-center py-4">
           Inga innehav ännu. Börja handla!
@@ -25,9 +25,10 @@ export function HoldingsTable({ holdings, shortPositions, totalValue }: Holdings
   }
 
   return (
-    <div className="rounded-xl border bg-card p-6">
+    <div className="rounded-xl border bg-card p-4 sm:p-6">
       <h2 className="text-lg font-semibold mb-4">Innehav</h2>
       {holdings.length > 0 && (
+        <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -93,6 +94,7 @@ export function HoldingsTable({ holdings, shortPositions, totalValue }: Holdings
             })}
           </TableBody>
         </Table>
+        </div>
       )}
 
       {hasShorts && (
@@ -101,6 +103,7 @@ export function HoldingsTable({ holdings, shortPositions, totalValue }: Holdings
             Blankade positioner
             <Badge variant="outline" className="text-xs border-loss text-loss">SHORT</Badge>
           </h3>
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -155,6 +158,7 @@ export function HoldingsTable({ holdings, shortPositions, totalValue }: Holdings
               })}
             </TableBody>
           </Table>
+          </div>
         </>
       )}
     </div>

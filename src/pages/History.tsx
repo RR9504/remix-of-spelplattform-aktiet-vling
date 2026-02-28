@@ -121,6 +121,7 @@ const History = () => {
             ) : (
               <>
                 <div className="rounded-xl border bg-card p-4">
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -182,6 +183,7 @@ const History = () => {
                       })}
                     </TableBody>
                   </Table>
+                  </div>
                 </div>
 
                 {totalPages > 1 && (

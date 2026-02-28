@@ -101,8 +101,13 @@ export function LeaderboardTable() {
                 className={`font-mono text-xs font-medium ${isPositive ? "text-gain" : "text-loss"}`}
               >
                 {isPositive ? "+" : ""}
-                {team.return_percent.toFixed(2)}% ({isPositive ? "+" : ""}
-                {formatSEK(team.return_amount)})
+                {team.return_percent.toFixed(2)}%
+              </p>
+              <p
+                className={`font-mono text-xs font-medium ${isPositive ? "text-gain" : "text-loss"}`}
+              >
+                {isPositive ? "+" : ""}
+                {formatSEK(team.return_amount)}
               </p>
             </div>
           </div>

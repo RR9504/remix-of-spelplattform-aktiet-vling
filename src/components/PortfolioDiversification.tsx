@@ -100,11 +100,9 @@ export function PortfolioDiversification({ holdings, shortPositions, cash }: Por
               data={dataWithPercent}
               cx="50%"
               cy="50%"
-              outerRadius={100}
-              innerRadius={60}
+              outerRadius={90}
+              innerRadius={54}
               dataKey="value"
-              label={({ name, percent }) => `${name} ${percent.toFixed(0)}%`}
-              labelLine={false}
             >
               {dataWithPercent.map((entry, i) => (
                 <Cell key={i} fill={getColor(entry, i)} />
@@ -130,7 +128,7 @@ export function PortfolioDiversification({ holdings, shortPositions, cash }: Por
         </ResponsiveContainer>
       </div>
 
-      <div className="mt-4 flex justify-center gap-6 text-sm text-muted-foreground">
+      <div className="mt-4 flex flex-wrap justify-center gap-x-6 gap-y-1 text-sm text-muted-foreground">
         <div>
           Långa: <span className="font-mono font-semibold text-foreground">{formatSEK(longTotal)}</span>
         </div>

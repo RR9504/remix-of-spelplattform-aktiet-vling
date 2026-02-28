@@ -90,7 +90,8 @@ const Watchlist = () => {
             </Link>
           </div>
         ) : (
-          <div className="rounded-xl border bg-card p-6">
+          <div className="rounded-xl border bg-card p-4 sm:p-6">
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -154,6 +155,7 @@ const Watchlist = () => {
                 })}
               </TableBody>
             </Table>
+            </div>
           </div>
         )}
       </main>

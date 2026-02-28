@@ -250,7 +250,7 @@ export default function Competitions() {
     <div className="min-h-screen bg-background">
       <Navbar />
       <main className="container py-6 pb-20 md:pb-6 space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold">Tävlingar</h1>
             <p className="text-muted-foreground text-sm">Hitta, skapa och gå med i tävlingar</p>
@@ -275,7 +275,7 @@ export default function Competitions() {
               className="pl-10 bg-card"
             />
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {(["all", "active", "upcoming", "ended"] as Filter[]).map((f) => (
               <Button
                 key={f}

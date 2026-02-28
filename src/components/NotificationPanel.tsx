@@ -30,7 +30,7 @@ export function NotificationPanel() {
   }
 
   return (
-    <div className="w-80">
+    <div className="w-[min(320px,calc(100vw-2rem))]">
       <div className="flex items-center justify-between p-3 border-b">
         <h3 className="text-sm font-semibold">Notifikationer</h3>
         <Button variant="ghost" size="sm" onClick={markAllAsRead} className="text-xs">

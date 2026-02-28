@@ -253,7 +253,7 @@ const StockDetailPage = () => {
         ) : (
           <>
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
                 <div className="flex items-center gap-3">
                   <span className="text-lg">{ticker.endsWith(".ST") ? "\u{1f1f8}\u{1f1ea}" : "\u{1f1fa}\u{1f1f8}"}</span>
@@ -261,7 +261,7 @@ const StockDetailPage = () => {
                   <span className="text-muted-foreground">{details.name}</span>
                 </div>
                 <div className="flex items-center gap-3 mt-1">
-                  <span className="text-3xl font-bold font-mono">
+                  <span className="text-2xl sm:text-3xl font-bold font-mono">
                     {formatPrice(details.price, details.currency)}
                   </span>
                   <Badge
@@ -290,8 +290,8 @@ const StockDetailPage = () => {
 
             {/* Chart */}
             <div className="rounded-xl border bg-card p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+                <div className="flex flex-wrap items-center gap-4">
                   <h2 className="text-sm font-semibold text-muted-foreground">Kurshistorik</h2>
                   {tradeMarkers.length > 0 && (
                     <div className="flex items-center gap-3 text-xs text-muted-foreground">
@@ -510,8 +510,9 @@ const StockDetailPage = () => {
 
             {/* Recent Trades */}
             {details.recent_trades.length > 0 && (
-              <div className="rounded-xl border bg-card p-6">
+              <div className="rounded-xl border bg-card p-4 sm:p-6">
                 <h2 className="text-lg font-semibold mb-4">Senaste affärer</h2>
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -549,6 +550,7 @@ const StockDetailPage = () => {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               </div>
             )}
           </>
