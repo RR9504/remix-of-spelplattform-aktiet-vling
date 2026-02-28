@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Area,
   AreaChart,
@@ -36,7 +36,7 @@ const BENCHMARK_COLOR = "hsl(30, 90%, 55%)";
 
 export function PortfolioChart({ currentValue, startValue: propStartValue }: PortfolioChartProps) {
   const { activeCompetition, activeTeam } = useCompetition();
-  const [data, setData] = useState<{ date: string; value: number }[]>([]);
+  const [rawSnapshots, setRawSnapshots] = useState<{ snapshot_date: string; total_value_sek: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<"mine" | "compare">("mine");
   const [comparisonData, setComparisonData] = useState<ComparisonData | null>(null);
@@ -44,66 +44,73 @@ export function PortfolioChart({ currentValue, startValue: propStartValue }: Por
   const [visibleTeams, setVisibleTeams] = useState<Set<string>>(new Set());
 
   const startValue = propStartValue ?? activeCompetition?.initial_balance ?? 1_000_000;
-  const displayValue = currentValue ?? (data.length > 0 ? data[data.length - 1].value : startValue);
-  const returnAmount = displayValue - startValue;
-  const returnPercent = startValue > 0 ? ((returnAmount / startValue) * 100).toFixed(2) : "0.00";
-  const isPositive = returnAmount >= 0;
 
+  // Fetch snapshots only when competition/team changes
   useEffect(() => {
     if (!activeCompetition || !activeTeam) {
-      setData([]);
+      setRawSnapshots([]);
       setLoading(false);
       return;
     }
     setLoading(true);
-    getPortfolioHistory(activeCompetition.id, activeTeam.id).then((snapshots) => {
-      // Build a map of date → value from actual snapshots
-      const snapshotMap: Record<string, number> = {};
-      for (const s of snapshots) {
-        snapshotMap[s.snapshot_date] = s.total_value_sek;
-      }
-
-      // Determine date range: competition start → today
-      const competitionStart = activeCompetition.start_date
-        ? new Date(activeCompetition.start_date)
-        : new Date();
-      const today = new Date();
-      // Normalize to date-only
-      competitionStart.setHours(0, 0, 0, 0);
-      today.setHours(0, 0, 0, 0);
-
-      // Generate daily data points, carrying forward the last known value
-      const chartData: { date: string; value: number }[] = [];
-      let lastValue = startValue;
-      const cursor = new Date(competitionStart);
-
-      while (cursor <= today) {
-        const isoDate = cursor.toISOString().split("T")[0];
-        if (snapshotMap[isoDate] !== undefined) {
-          lastValue = snapshotMap[isoDate];
-        }
-        chartData.push({
-          date: cursor.toLocaleDateString("sv-SE", { day: "numeric", month: "short" }),
-          value: lastValue,
-        });
-        cursor.setDate(cursor.getDate() + 1);
-      }
-
-      // Update the last point to the live current value
-      const current = currentValue ?? startValue;
-      if (chartData.length > 0) {
-        chartData[chartData.length - 1].value = current;
-      } else {
-        chartData.push({
-          date: today.toLocaleDateString("sv-SE", { day: "numeric", month: "short" }),
-          value: current,
-        });
-      }
-
-      setData(chartData);
-      setLoading(false);
-    });
+    getPortfolioHistory(activeCompetition.id, activeTeam.id)
+      .then((snapshots) => {
+        setRawSnapshots(snapshots);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, [activeCompetition?.id, activeTeam?.id]);
+
+  // Recompute chart data reactively when snapshots OR currentValue change
+  const data = useMemo(() => {
+    if (!activeCompetition) return [];
+
+    const snapshotMap: Record<string, number> = {};
+    for (const s of rawSnapshots) {
+      snapshotMap[s.snapshot_date] = s.total_value_sek;
+    }
+
+    const competitionStart = activeCompetition.start_date
+      ? new Date(activeCompetition.start_date)
+      : new Date();
+    const today = new Date();
+    competitionStart.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+
+    const chartData: { date: string; value: number }[] = [];
+    let lastValue = startValue;
+    const cursor = new Date(competitionStart);
+
+    while (cursor <= today) {
+      const isoDate = cursor.toISOString().split("T")[0];
+      if (snapshotMap[isoDate] !== undefined) {
+        lastValue = snapshotMap[isoDate];
+      }
+      chartData.push({
+        date: cursor.toLocaleDateString("sv-SE", { day: "numeric", month: "short" }),
+        value: lastValue,
+      });
+      cursor.setDate(cursor.getDate() + 1);
+    }
+
+    // Override last point with live current value
+    const current = currentValue ?? lastValue;
+    if (chartData.length > 0) {
+      chartData[chartData.length - 1].value = current;
+    } else {
+      chartData.push({
+        date: today.toLocaleDateString("sv-SE", { day: "numeric", month: "short" }),
+        value: current,
+      });
+    }
+
+    return chartData;
+  }, [rawSnapshots, currentValue, startValue, activeCompetition?.start_date]);
+
+  const displayValue = currentValue ?? (data.length > 0 ? data[data.length - 1].value : startValue);
+  const returnAmount = displayValue - startValue;
+  const returnPercent = startValue > 0 ? ((returnAmount / startValue) * 100).toFixed(2) : "0.00";
+  const isPositive = returnAmount >= 0;
 
   useEffect(() => {
     if (mode === "compare" && !comparisonData && activeCompetition && activeTeam) {
