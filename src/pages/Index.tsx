@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Loader2, HelpCircle, ChevronDown } from "lucide-react";
+import { Loader2, HelpCircle } from "lucide-react";
 import { Navbar } from "@/components/Navbar";
 import { PortfolioChart } from "@/components/PortfolioChart";
 import { HoldingsTable } from "@/components/HoldingsTable";
@@ -23,35 +23,70 @@ import { getPortfolio } from "@/lib/api";
 import { useCompetition } from "@/contexts/CompetitionContext";
 import type { Portfolio } from "@/types/trading";
 
+function getCachedPortfolio(compId: string, teamId: string): Portfolio | null {
+  try {
+    const raw = localStorage.getItem(`sa_portfolio_${compId}_${teamId}`);
+    if (!raw) return null;
+    const { data, ts } = JSON.parse(raw);
+    // Use cache if less than 10 minutes old
+    if (Date.now() - ts > 10 * 60 * 1000) return null;
+    return data as Portfolio;
+  } catch {
+    return null;
+  }
+}
+
+function setCachedPortfolio(compId: string, teamId: string, data: Portfolio) {
+  try {
+    localStorage.setItem(
+      `sa_portfolio_${compId}_${teamId}`,
+      JSON.stringify({ data, ts: Date.now() })
+    );
+  } catch {}
+}
+
 const Index = () => {
   const { activeCompetition, activeTeam, competitions, teams, setActiveCompetitionId, setActiveTeamId, loading: ctxLoading } = useCompetition();
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [showGuide, setShowGuide] = useState(() => !localStorage.getItem("stockarena_tutorial_seen"));
 
   useEffect(() => {
     if (!activeCompetition || !activeTeam) {
       setPortfolio(null);
-      setLoading(false);
       return;
     }
-    setLoading(true);
+
+    // Show cached data immediately — no spinner
+    const cached = getCachedPortfolio(activeCompetition.id, activeTeam.id);
+    if (cached) {
+      setPortfolio(cached);
+    }
+
+    // Fetch fresh data in background
+    setRefreshing(true);
     getPortfolio(activeCompetition.id, activeTeam.id)
       .then((data) => {
-        setPortfolio(data);
+        if (data) {
+          setPortfolio(data);
+          setCachedPortfolio(activeCompetition.id, activeTeam.id, data);
+        }
       })
       .catch((err) => {
         console.error("Failed to load portfolio:", err);
       })
       .finally(() => {
-        setLoading(false);
+        setRefreshing(false);
       });
 
     // Auto-refresh portfolio every 60 seconds
     const interval = setInterval(() => {
       getPortfolio(activeCompetition.id, activeTeam.id)
         .then((data) => {
-          if (data) setPortfolio(data);
+          if (data) {
+            setPortfolio(data);
+            setCachedPortfolio(activeCompetition.id, activeTeam.id, data);
+          }
         })
         .catch(() => {});
     }, 60_000);
@@ -159,12 +194,18 @@ const Index = () => {
           </div>
         </div>
 
-        {loading ? (
+        {!portfolio && refreshing ? (
           <div className="flex justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : (
           <>
+            {refreshing && portfolio && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                <span>Uppdaterar...</span>
+              </div>
+            )}
             <div className="grid gap-4 md:grid-cols-3">
               <div className="rounded-xl border bg-card p-3 sm:p-5">
                 <p className="text-sm text-muted-foreground">

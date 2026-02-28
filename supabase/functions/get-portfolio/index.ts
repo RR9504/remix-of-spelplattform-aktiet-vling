@@ -25,8 +25,8 @@ serve(async (req) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceKey);
 
-    // Fetch cash balance, holdings, and short positions in parallel
-    const [{ data: ct }, { data: holdings }, { data: shortPositions }] = await Promise.all([
+    // Fetch cash balance, holdings, short positions, and recent trades in parallel
+    const [{ data: ct }, { data: holdings }, { data: shortPositions }, { data: recentTrades }] = await Promise.all([
       supabase
         .from("competition_teams")
         .select("cash_balance_sek, margin_reserved_sek")
@@ -44,6 +44,13 @@ serve(async (req) => {
         .eq("competition_id", competitionId)
         .eq("team_id", teamId)
         .is("closed_at", null),
+      supabase
+        .from("trades")
+        .select("*")
+        .eq("competition_id", competitionId)
+        .eq("team_id", teamId)
+        .order("executed_at", { ascending: false })
+        .limit(10),
     ]);
 
     if (!ct) {
@@ -164,22 +171,13 @@ serve(async (req) => {
       });
     }
 
-    // Get recent trades
-    const { data: recentTrades } = await supabase
-      .from("trades")
-      .select("*")
-      .eq("competition_id", competitionId)
-      .eq("team_id", teamId)
-      .order("executed_at", { ascending: false })
-      .limit(10);
-
     // total_value = cash + long_holdings - short_liabilities
     // margin_reserved is NOT separate money — it's already included in cash_balance_sek
     const totalValue = cash + holdingsValue - shortLiabilities;
 
-    // Upsert today's portfolio snapshot so the chart builds up daily
+    // Fire-and-forget: upsert today's portfolio snapshot without blocking the response
     const today = new Date().toISOString().split("T")[0];
-    await supabase
+    supabase
       .from("portfolio_snapshots")
       .upsert(
         {
@@ -192,7 +190,8 @@ serve(async (req) => {
         },
         { onConflict: "competition_id,team_id,snapshot_date" }
       )
-      .then(() => {});
+      .then(() => {})
+      .catch(() => {});
 
     return new Response(
       JSON.stringify({
