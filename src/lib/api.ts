@@ -314,17 +314,27 @@ export async function getTradeHistory(params: {
   limit?: number;
 }): Promise<{ trades: TradeHistoryEntry[]; total: number }> {
   try {
-    const headers = await getAuthHeaders();
-    const searchParams = new URLSearchParams();
-    Object.entries(params).forEach(([k, v]) => {
-      if (v !== undefined && v !== null && v !== "") searchParams.set(k, String(v));
-    });
-    const res = await fetch(
-      `${SUPABASE_URL}/functions/v1/get-trade-history?${searchParams}`,
-      { headers }
-    );
-    if (!res.ok) return { trades: [], total: 0 };
-    return await res.json();
+    const pageNum = params.page ?? 1;
+    const limitNum = Math.min(params.limit ?? 20, 100);
+    const offset = (pageNum - 1) * limitNum;
+
+    let query = supabase
+      .from("trades")
+      .select("*", { count: "exact" })
+      .eq("competition_id", params.competition_id);
+
+    if (params.team_id) query = query.eq("team_id", params.team_id);
+    if (params.ticker) query = query.eq("ticker", params.ticker);
+    if (params.side) query = query.eq("side", params.side);
+    if (params.from) query = query.gte("executed_at", params.from);
+    if (params.to) query = query.lte("executed_at", params.to + "T23:59:59Z");
+
+    const { data, count, error } = await query
+      .order("executed_at", { ascending: false })
+      .range(offset, offset + limitNum - 1);
+
+    if (error) return { trades: [], total: 0 };
+    return { trades: (data as unknown as TradeHistoryEntry[]) || [], total: count || 0 };
   } catch {
     return { trades: [], total: 0 };
   }
