@@ -94,7 +94,7 @@ export function Navbar() {
   return (
     <>
       {/* ── Desktop header (md+) ── */}
-      <header className="sticky top-0 z-50 glass hidden md:block">
+      <header className="sticky top-0 z-50 glass hidden md:block pt-[env(safe-area-inset-top)]">
         <div className="container flex h-16 items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
             <TrendingUp className="h-6 w-6 text-primary" />
@@ -151,7 +151,7 @@ export function Navbar() {
       </header>
 
       {/* ── Mobile header (<md) ── */}
-      <header className="sticky top-0 z-50 glass flex md:hidden">
+      <header className="sticky top-0 z-50 glass flex md:hidden pt-[env(safe-area-inset-top)]">
         <div className="container flex h-14 items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-primary" />
