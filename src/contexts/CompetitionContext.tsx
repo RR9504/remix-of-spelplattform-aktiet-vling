@@ -43,14 +43,47 @@ const CompetitionContext = createContext<CompetitionContextType>({
 
 export const useCompetition = () => useContext(CompetitionContext);
 
+const CACHE_KEY = "sa_competition_ctx";
+
+function restoreCache(): {
+  teams: TeamInfo[];
+  competitions: CompetitionInfo[];
+  activeCompetitionId: string | null;
+  activeTeamId: string | null;
+} | null {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const cached = JSON.parse(raw);
+    if (Date.now() - cached.ts > 30 * 60 * 1000) return null; // 30 min TTL
+    return cached.data;
+  } catch {
+    return null;
+  }
+}
+
+function saveCache(data: {
+  teams: TeamInfo[];
+  competitions: CompetitionInfo[];
+  activeCompetitionId: string | null;
+  activeTeamId: string | null;
+}) {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ data, ts: Date.now() }));
+  } catch {}
+}
+
 export function CompetitionProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  const [teams, setTeams] = useState<TeamInfo[]>([]);
-  const [competitions, setCompetitions] = useState<CompetitionInfo[]>([]);
-  const [activeCompetitionId, setActiveCompetitionId] = useState<string | null>(null);
-  const [activeTeamId, setActiveTeamId] = useState<string | null>(null);
+
+  // Restore from cache immediately — no loading spinner on return visits
+  const cached = restoreCache();
+  const [teams, setTeams] = useState<TeamInfo[]>(cached?.teams ?? []);
+  const [competitions, setCompetitions] = useState<CompetitionInfo[]>(cached?.competitions ?? []);
+  const [activeCompetitionId, setActiveCompetitionId] = useState<string | null>(cached?.activeCompetitionId ?? null);
+  const [activeTeamId, setActiveTeamId] = useState<string | null>(cached?.activeTeamId ?? null);
   const [cashBalance, setCashBalance] = useState<number | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!cached);
 
   const refresh = useCallback(async () => {
     if (!user) {
@@ -119,7 +152,7 @@ export function CompetitionProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  }, [user, activeCompetitionId, activeTeamId]);
+  }, [user]);
 
   // Fetch cash balance when active competition/team change
   useEffect(() => {
@@ -141,6 +174,13 @@ export function CompetitionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     refresh();
   }, [user]);
+
+  // Persist context to localStorage whenever it changes
+  useEffect(() => {
+    if (teams.length > 0 || competitions.length > 0) {
+      saveCache({ teams, competitions, activeCompetitionId, activeTeamId });
+    }
+  }, [teams, competitions, activeCompetitionId, activeTeamId]);
 
   const activeCompetition = competitions.find((c) => c.id === activeCompetitionId) || null;
   const activeTeam = teams.find((t) => t.id === activeTeamId) || null;
