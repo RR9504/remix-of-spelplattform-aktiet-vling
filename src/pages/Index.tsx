@@ -36,16 +36,24 @@ const Index = () => {
       return;
     }
     setLoading(true);
-    getPortfolio(activeCompetition.id, activeTeam.id).then((data) => {
-      setPortfolio(data);
-      setLoading(false);
-    });
+    getPortfolio(activeCompetition.id, activeTeam.id)
+      .then((data) => {
+        setPortfolio(data);
+      })
+      .catch((err) => {
+        console.error("Failed to load portfolio:", err);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
 
     // Auto-refresh portfolio every 60 seconds
     const interval = setInterval(() => {
-      getPortfolio(activeCompetition.id, activeTeam.id).then((data) => {
-        if (data) setPortfolio(data);
-      });
+      getPortfolio(activeCompetition.id, activeTeam.id)
+        .then((data) => {
+          if (data) setPortfolio(data);
+        })
+        .catch(() => {});
     }, 60_000);
     return () => clearInterval(interval);
   }, [activeCompetition?.id, activeTeam?.id]);

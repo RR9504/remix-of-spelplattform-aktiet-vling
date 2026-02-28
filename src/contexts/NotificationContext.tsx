@@ -44,9 +44,14 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       return;
     }
-    const data = await getNotifications({ limit: 30 });
-    setNotifications(data);
-    setLoading(false);
+    try {
+      const data = await getNotifications({ limit: 30 });
+      setNotifications(data);
+    } catch (err) {
+      console.error("NotificationContext refresh failed:", err);
+    } finally {
+      setLoading(false);
+    }
   }, [user]);
 
   const markAsRead = useCallback(async (ids: string[]) => {
@@ -66,7 +71,13 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    refresh();
+    if (!user) {
+      refresh();
+      return;
+    }
+    // Delay notification fetch so it doesn't compete with critical data loading
+    const timer = setTimeout(refresh, 2000);
+    return () => clearTimeout(timer);
   }, [user]);
 
   // Subscribe to realtime notifications

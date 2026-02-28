@@ -110,13 +110,24 @@ export default function Competitions() {
 
     if (!error && data) {
       const comps = data as unknown as Competition[];
-      for (const comp of comps) {
-        const { count } = await supabase
+      const compIds = comps.map((c) => c.id);
+
+      // Single query to count teams per competition instead of N+1
+      if (compIds.length > 0) {
+        const { data: ctRows } = await supabase
           .from("competition_teams")
-          .select("id", { count: "exact", head: true })
-          .eq("competition_id", comp.id);
-        comp.team_count = count ?? 0;
+          .select("competition_id")
+          .in("competition_id", compIds);
+
+        const countMap: Record<string, number> = {};
+        for (const row of (ctRows || []) as any[]) {
+          countMap[row.competition_id] = (countMap[row.competition_id] || 0) + 1;
+        }
+        for (const comp of comps) {
+          comp.team_count = countMap[comp.id] ?? 0;
+        }
       }
+
       setCompetitions(comps);
     }
     setLoading(false);

@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 
-const STALE_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
+const STALE_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -25,13 +25,26 @@ serve(async (req) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceKey);
 
-    // Get cash balance + margin
-    const { data: ct } = await supabase
-      .from("competition_teams")
-      .select("cash_balance_sek, margin_reserved_sek")
-      .eq("competition_id", competitionId)
-      .eq("team_id", teamId)
-      .single();
+    // Fetch cash balance, holdings, and short positions in parallel
+    const [{ data: ct }, { data: holdings }, { data: shortPositions }] = await Promise.all([
+      supabase
+        .from("competition_teams")
+        .select("cash_balance_sek, margin_reserved_sek")
+        .eq("competition_id", competitionId)
+        .eq("team_id", teamId)
+        .single(),
+      supabase
+        .from("team_holdings")
+        .select("*")
+        .eq("competition_id", competitionId)
+        .eq("team_id", teamId),
+      supabase
+        .from("short_positions")
+        .select("*")
+        .eq("competition_id", competitionId)
+        .eq("team_id", teamId)
+        .is("closed_at", null),
+    ]);
 
     if (!ct) {
       return new Response(JSON.stringify({ error: "Team not in competition" }), {
@@ -42,21 +55,6 @@ serve(async (req) => {
 
     const cash = Number(ct.cash_balance_sek);
     const marginReserved = Number(ct.margin_reserved_sek || 0);
-
-    // Get holdings from view
-    const { data: holdings } = await supabase
-      .from("team_holdings")
-      .select("*")
-      .eq("competition_id", competitionId)
-      .eq("team_id", teamId);
-
-    // Get short positions
-    const { data: shortPositions } = await supabase
-      .from("short_positions")
-      .select("*")
-      .eq("competition_id", competitionId)
-      .eq("team_id", teamId)
-      .is("closed_at", null);
 
     // Collect all tickers that need prices
     const holdingTickers = (holdings || []).map((h) => h.ticker);
@@ -82,29 +80,23 @@ serve(async (req) => {
       return (Date.now() - new Date(cached.updated_at).getTime()) > STALE_THRESHOLD_MS;
     });
 
+    // Fire-and-forget: refresh stale prices in the background without blocking the response
     if (staleTickers.length > 0) {
-      // Fetch stale prices in parallel (max 10 concurrent)
-      const refreshPromises = staleTickers.map(async (ticker) => {
-        try {
-          const resp = await fetch(
-            `${supabaseUrl}/functions/v1/fetch-stock-price?ticker=${encodeURIComponent(ticker)}`,
-            { headers: { Authorization: `Bearer ${serviceKey}`, apikey: serviceKey } }
-          );
-          if (resp.ok) {
-            const data = await resp.json();
-            if (data.price_sek) {
-              priceMap[ticker] = {
-                price: Number(data.price),
-                price_sek: Number(data.price_sek),
-                updated_at: data.updated_at || new Date().toISOString(),
-              };
-            }
+      const bgRefresh = async () => {
+        const refreshPromises = staleTickers.map(async (ticker) => {
+          try {
+            await fetch(
+              `${supabaseUrl}/functions/v1/fetch-stock-price?ticker=${encodeURIComponent(ticker)}`,
+              { headers: { Authorization: `Bearer ${serviceKey}`, apikey: serviceKey } }
+            );
+          } catch (e) {
+            console.error(`Failed to refresh price for ${ticker}:`, e);
           }
-        } catch (e) {
-          console.error(`Failed to refresh price for ${ticker}:`, e);
-        }
-      });
-      await Promise.all(refreshPromises);
+        });
+        await Promise.all(refreshPromises);
+      };
+      // Don't await — let it run in the background (Deno keeps the function alive until all promises settle)
+      bgRefresh().catch(() => {});
     }
 
     // Enrich holdings
