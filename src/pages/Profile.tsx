@@ -182,7 +182,7 @@ export default function ProfilePage() {
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="font-semibold text-sm">{comp.name}</p>
-                          <p className="text-xs text-muted-foreground mt-0.5">
+                          <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 break-words">
                             {mapping ? `Lag: ${mapping.team_name}` : ""}
                             {mapping ? " · " : ""}
                             {start.toLocaleDateString("sv-SE")} – {end.toLocaleDateString("sv-SE")}

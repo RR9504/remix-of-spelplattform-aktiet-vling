@@ -453,16 +453,16 @@ const StockDetailPage = () => {
             </div>
 
             {/* Key Stats */}
-            <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
-              <div className="rounded-xl border bg-card p-4">
+            <div className="grid gap-3 sm:gap-4 grid-cols-2 md:grid-cols-4">
+              <div className="rounded-xl border bg-card p-3 sm:p-4">
                 <p className="text-xs text-muted-foreground">P/E-tal</p>
-                <p className="text-lg font-mono font-semibold">
+                <p className="text-base sm:text-lg font-mono font-semibold">
                   {details.pe_ratio ? details.pe_ratio.toFixed(1) : "–"}
                 </p>
               </div>
-              <div className="rounded-xl border bg-card p-4">
+              <div className="rounded-xl border bg-card p-3 sm:p-4">
                 <p className="text-xs text-muted-foreground">Marknadsvärde</p>
-                <p className="text-lg font-mono font-semibold">
+                <p className="text-base sm:text-lg font-mono font-semibold">
                   {details.market_cap
                     ? details.market_cap >= 1e9
                       ? `${(details.market_cap / 1e9).toFixed(1)}B`
@@ -470,17 +470,17 @@ const StockDetailPage = () => {
                     : "–"}
                 </p>
               </div>
-              <div className="rounded-xl border bg-card p-4">
+              <div className="rounded-xl border bg-card p-3 sm:p-4">
                 <p className="text-xs text-muted-foreground">52v högsta/lägsta</p>
-                <p className="text-lg font-mono font-semibold">
+                <p className="text-base sm:text-lg font-mono font-semibold">
                   {details.week52_high && details.week52_low
                     ? `${details.week52_low.toFixed(0)} – ${details.week52_high.toFixed(0)}`
                     : "–"}
                 </p>
               </div>
-              <div className="rounded-xl border bg-card p-4">
+              <div className="rounded-xl border bg-card p-3 sm:p-4">
                 <p className="text-xs text-muted-foreground">Volym</p>
-                <p className="text-lg font-mono font-semibold">
+                <p className="text-base sm:text-lg font-mono font-semibold">
                   {details.volume
                     ? details.volume >= 1e6
                       ? `${(details.volume / 1e6).toFixed(1)}M`

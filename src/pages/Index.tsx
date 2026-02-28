@@ -118,7 +118,7 @@ const Index = () => {
                 value={activeCompetition.id}
                 onValueChange={(v) => setActiveCompetitionId(v)}
               >
-                <SelectTrigger className="w-[180px] h-9 text-xs">
+                <SelectTrigger className="w-full sm:w-[180px] h-9 text-xs">
                   <SelectValue placeholder="Byt tävling" />
                 </SelectTrigger>
                 <SelectContent>
@@ -133,7 +133,7 @@ const Index = () => {
                 value={activeTeam.id}
                 onValueChange={(v) => setActiveTeamId(v)}
               >
-                <SelectTrigger className="w-[140px] h-9 text-xs">
+                <SelectTrigger className="w-full sm:w-[140px] h-9 text-xs">
                   <SelectValue placeholder="Byt lag" />
                 </SelectTrigger>
                 <SelectContent>
@@ -166,11 +166,11 @@ const Index = () => {
         ) : (
           <>
             <div className="grid gap-4 md:grid-cols-3">
-              <div className="rounded-xl border bg-card p-5">
+              <div className="rounded-xl border bg-card p-3 sm:p-5">
                 <p className="text-sm text-muted-foreground">
                   {hasShorts ? "Tillgängligt saldo" : "Likvida medel"}
                 </p>
-                <p className="text-xl font-bold font-mono">
+                <p className="text-lg sm:text-xl font-bold font-mono">
                   {formatSEK(hasShorts ? cash - marginReserved : cash)}
                 </p>
                 {hasShorts && (
@@ -179,13 +179,13 @@ const Index = () => {
                   </p>
                 )}
               </div>
-              <div className="rounded-xl border bg-card p-5">
+              <div className="rounded-xl border bg-card p-3 sm:p-5">
                 <p className="text-sm text-muted-foreground">Aktievärde</p>
-                <p className="text-xl font-bold font-mono">{formatSEK(holdingsValue)}</p>
+                <p className="text-lg sm:text-xl font-bold font-mono">{formatSEK(holdingsValue)}</p>
               </div>
-              <div className="rounded-xl border bg-card p-5">
+              <div className="rounded-xl border bg-card p-3 sm:p-5">
                 <p className="text-sm text-muted-foreground">Portföljvärde</p>
-                <p className="text-xl font-bold font-mono">{formatSEK(totalValue)}</p>
+                <p className="text-lg sm:text-xl font-bold font-mono">{formatSEK(totalValue)}</p>
                 <p className="text-xs text-muted-foreground mt-1">
                   {((totalValue / activeCompetition.initial_balance - 1) * 100).toFixed(1)}% avkastning
                 </p>

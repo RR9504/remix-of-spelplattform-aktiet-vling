@@ -336,7 +336,7 @@ export default function Competitions() {
                         <div className="space-y-1">
                           <p className="text-xs text-muted-foreground">Inbjudningskod:</p>
                           <div className="flex items-center gap-2">
-                            <code className="flex-1 rounded bg-muted px-3 py-1.5 font-mono text-sm tracking-widest text-center">
+                            <code className="flex-1 min-w-0 rounded bg-muted px-2 py-1.5 font-mono text-[11px] sm:text-sm tracking-wider sm:tracking-widest text-center truncate">
                               {comp.invite_code}
                             </code>
                             <Button
@@ -497,7 +497,7 @@ export default function Competitions() {
                   required
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Startdatum</Label>
                   <Input

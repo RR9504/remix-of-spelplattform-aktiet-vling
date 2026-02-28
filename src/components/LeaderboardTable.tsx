@@ -70,7 +70,7 @@ export function LeaderboardTable() {
         return (
           <div
             key={team.team_id}
-            className={`flex items-center gap-4 rounded-xl border bg-card p-4 transition-all hover:bg-muted ${
+            className={`flex items-center gap-3 sm:gap-4 rounded-xl border bg-card p-3 sm:p-4 transition-all hover:bg-muted ${
               rank <= 3 ? "glow-primary border-primary/20" : ""
             } ${isOwnTeam ? "ring-2 ring-primary/50" : ""}`}
             style={{ animationDelay: `${i * 60}ms` }}
@@ -93,7 +93,7 @@ export function LeaderboardTable() {
                 </Link>
                 {isOwnTeam && <span className="ml-2 text-xs text-primary">(ditt lag)</span>}
               </p>
-              <p className="text-xs text-muted-foreground">{team.members.join(", ")}</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{team.members.join(", ")}</p>
             </div>
             <div className="text-right">
               <p className="font-mono text-sm font-semibold">{formatSEK(team.total_value)}</p>

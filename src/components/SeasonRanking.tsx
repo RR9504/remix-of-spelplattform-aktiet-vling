@@ -38,7 +38,7 @@ export function SeasonRanking() {
         return (
           <div
             key={entry.team_id}
-            className={`flex items-center gap-4 rounded-xl border bg-card p-4 transition-all hover:bg-muted ${
+            className={`flex items-center gap-3 sm:gap-4 rounded-xl border bg-card p-3 sm:p-4 transition-all hover:bg-muted ${
               rank <= 3 ? "glow-primary border-primary/20" : ""
             }`}
           >
@@ -59,7 +59,7 @@ export function SeasonRanking() {
                   {entry.team_name}
                 </Link>
               </p>
-              <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+              <div className="flex flex-wrap gap-x-2 sm:gap-x-3 gap-y-0.5 text-[10px] sm:text-xs text-muted-foreground">
                 <span>{entry.competitions} tävlingar</span>
                 <span>{entry.wins} segrar</span>
                 <span>{entry.podiums} podier</span>

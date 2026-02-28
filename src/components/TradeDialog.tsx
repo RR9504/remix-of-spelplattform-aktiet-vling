@@ -247,9 +247,9 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
           ) : (
             <Tabs defaultValue="direct">
               <TabsList className="w-full">
-                <TabsTrigger value="direct" className="flex-1">Direkt</TabsTrigger>
-                <TabsTrigger value="limit" className="flex-1">Limitorder</TabsTrigger>
-                <TabsTrigger value="short" className="flex-1">Blankning</TabsTrigger>
+                <TabsTrigger value="direct" className="flex-1 text-xs sm:text-sm">Direkt</TabsTrigger>
+                <TabsTrigger value="limit" className="flex-1 text-xs sm:text-sm">Limitorder</TabsTrigger>
+                <TabsTrigger value="short" className="flex-1 text-xs sm:text-sm">Blankning</TabsTrigger>
               </TabsList>
 
               <TabsContent value="direct" className="space-y-4 mt-4">

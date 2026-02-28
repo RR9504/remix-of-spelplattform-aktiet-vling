@@ -83,10 +83,10 @@ const History = () => {
                 placeholder="Ticker..."
                 value={ticker}
                 onChange={(e) => setTicker(e.target.value)}
-                className="w-32 bg-card"
+                className="w-full sm:w-32 bg-card"
               />
               <Select value={side} onValueChange={setSide}>
-                <SelectTrigger className="w-32">
+                <SelectTrigger className="w-full sm:w-32">
                   <SelectValue placeholder="Alla typer" />
                 </SelectTrigger>
                 <SelectContent>
@@ -101,13 +101,13 @@ const History = () => {
                 type="date"
                 value={fromDate}
                 onChange={(e) => setFromDate(e.target.value)}
-                className="w-40 bg-card"
+                className="w-full sm:w-40 bg-card"
               />
               <Input
                 type="date"
                 value={toDate}
                 onChange={(e) => setToDate(e.target.value)}
-                className="w-40 bg-card"
+                className="w-full sm:w-40 bg-card"
               />
               <Button onClick={handleFilter} variant="outline">Filtrera</Button>
             </div>

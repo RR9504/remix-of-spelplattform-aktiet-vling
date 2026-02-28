@@ -324,7 +324,7 @@ export default function Onboarding() {
                     required
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Startdatum</Label>
                     <Input
@@ -404,7 +404,7 @@ export default function Onboarding() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center gap-3">
-                <code className="flex-1 rounded-lg bg-muted px-4 py-3 font-mono text-lg tracking-widest text-center">
+                <code className="flex-1 rounded-lg bg-muted px-3 py-2 sm:px-4 sm:py-3 font-mono text-sm sm:text-lg tracking-wider sm:tracking-widest text-center">
                   {createdInviteCode}
                 </code>
                 <Button variant="outline" size="icon" onClick={copyCode}>

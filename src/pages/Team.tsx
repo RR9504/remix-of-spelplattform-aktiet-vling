@@ -221,7 +221,7 @@ export default function TeamPage() {
     <div className="min-h-screen bg-background">
       <Navbar />
       <main className="container py-6 pb-20 md:pb-6 space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2">
               <Users className="h-6 w-6 text-primary" />
@@ -274,7 +274,7 @@ export default function TeamPage() {
           </CardHeader>
             <CardContent>
               <div className="flex items-center gap-3">
-                <code className="flex-1 rounded-lg bg-muted px-4 py-3 font-mono text-lg tracking-widest">
+                <code className="flex-1 rounded-lg bg-muted px-3 py-2 sm:px-4 sm:py-3 font-mono text-sm sm:text-lg tracking-wider sm:tracking-widest">
                   {team.invite_code}
                 </code>
                 <Button variant="outline" size="icon" onClick={copyCode}>
@@ -311,7 +311,7 @@ export default function TeamPage() {
                           <Crown className="inline ml-2 h-4 w-4 text-primary" />
                         )}
                       </p>
-                      <p className="text-sm text-muted-foreground">{m.profiles?.email}</p>
+                      <p className="text-xs sm:text-sm text-muted-foreground truncate">{m.profiles?.email}</p>
                     </div>
                     <div className="flex items-center gap-2">
                       {isMemberCaptain && (
