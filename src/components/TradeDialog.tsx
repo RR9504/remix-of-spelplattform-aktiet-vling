@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { executeTrade, fetchStockPrice, placeOrder } from "@/lib/api";
 import { useCompetition } from "@/contexts/CompetitionContext";
 import { supabase } from "@/integrations/supabase/client";
-import { formatSEK, formatPrice } from "@/lib/mockData";
+import { formatSEK, formatPrice, isMarketOpen } from "@/lib/mockData";
 import type { StockSearchResult, StockPrice, OrderType } from "@/types/trading";
 
 interface TradeDialogProps {
@@ -46,6 +46,10 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
   const [currentShares, setCurrentShares] = useState<number>(0);
   const [avgCost, setAvgCost] = useState<number>(0);
   const [shortShares, setShortShares] = useState<number>(0);
+
+  // Determine which market this stock belongs to and if it's open
+  const isSE = stock.exchange?.includes("Stockholm") || stock.ticker.endsWith(".ST");
+  const marketOpen = isMarketOpen(isSE ? "SE" : "US");
 
   useEffect(() => {
     if (!priceData) {
@@ -245,7 +249,7 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
               </p>
             </div>
           ) : (
-            <Tabs defaultValue="direct">
+            <Tabs defaultValue={marketOpen ? "direct" : "limit"}>
               <TabsList className="w-full">
                 <TabsTrigger value="direct" className="flex-1 text-xs sm:text-sm">Direkt</TabsTrigger>
                 <TabsTrigger value="limit" className="flex-1 text-xs sm:text-sm">Limitorder</TabsTrigger>
@@ -253,6 +257,14 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
               </TabsList>
 
               <TabsContent value="direct" className="space-y-4 mt-4">
+                {!marketOpen && (
+                  <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-3 text-sm">
+                    <p className="font-medium text-yellow-600">Börsen är stängd</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Direkthandel är inte tillgängligt just nu. Använd <strong>Limitorder</strong> för att lägga en order som exekveras vid nästa börsöppning.
+                    </p>
+                  </div>
+                )}
                 <div className="flex gap-2">
                   <Button
                     variant={side === "buy" ? "default" : "outline"}
@@ -356,12 +368,14 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
                 <Button
                   onClick={handleTrade}
                   className="w-full"
-                  disabled={!priceData || qty <= 0 || loading || fetchingPrice}
+                  disabled={!priceData || qty <= 0 || loading || fetchingPrice || !marketOpen}
                 >
                   {loading ? (
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
                   ) : null}
-                  {loading
+                  {!marketOpen
+                    ? "Börsen stängd — använd limitorder"
+                    : loading
                     ? "Genomför..."
                     : `${side === "buy" ? "Köp" : "Sälj"} ${stock.ticker}`}
                 </Button>
@@ -459,6 +473,14 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
               </TabsContent>
 
               <TabsContent value="short" className="space-y-4 mt-4">
+                {!marketOpen && (
+                  <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-3 text-sm">
+                    <p className="font-medium text-yellow-600">Börsen är stängd</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Blankning kräver att börsen är öppen. Använd <strong>Limitorder</strong> istället.
+                    </p>
+                  </div>
+                )}
                 <div className="flex gap-2">
                   <Button
                     variant={shortSide === "short" ? "default" : "outline"}
@@ -527,12 +549,14 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
                 <Button
                   onClick={handleShortTrade}
                   className="w-full"
-                  disabled={!priceData || qty <= 0 || loading || fetchingPrice}
+                  disabled={!priceData || qty <= 0 || loading || fetchingPrice || !marketOpen}
                 >
                   {loading ? (
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
                   ) : null}
-                  {loading
+                  {!marketOpen
+                    ? "Börsen stängd — använd limitorder"
+                    : loading
                     ? "Genomför..."
                     : `${shortSide === "short" ? "Blanka" : "Täck"} ${stock.ticker}`}
                 </Button>

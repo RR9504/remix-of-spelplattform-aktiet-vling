@@ -110,6 +110,27 @@ serve(async (req) => {
       });
     }
 
+    // Check if relevant market is open (CET/Stockholm timezone)
+    const now = new Date();
+    const cet = new Date(now.toLocaleString("en-US", { timeZone: "Europe/Stockholm" }));
+    const day = cet.getDay();
+    const time = cet.getHours() * 60 + cet.getMinutes();
+    const isSE = ticker.endsWith(".ST");
+    const isWeekday = day >= 1 && day <= 5;
+    const seOpen = isWeekday && time >= 9 * 60 && time <= 17 * 60 + 30;
+    const usOpen = isWeekday && time >= 15 * 60 + 30 && time <= 22 * 60;
+    const marketOpen = isSE ? seOpen : usOpen;
+
+    if (!marketOpen) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: "Börsen är stängd. Använd limitorder för att handla utanför öppettider.",
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Fetch current stock price
     const priceUrl = `${supabaseUrl}/functions/v1/fetch-stock-price?ticker=${encodeURIComponent(ticker)}`;
     const priceResp = await fetch(priceUrl, {
