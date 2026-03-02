@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { Trophy, Loader2 } from "lucide-react";
+import { Trophy, Loader2, BarChart3, TrendingUp, ArrowRightLeft, Hash } from "lucide-react";
 import { formatSEK } from "@/lib/mockData";
 import { getCompetitionResults, type CompetitionResult } from "@/lib/api";
+import { supabase } from "@/integrations/supabase/client";
 import { useCompetition } from "@/contexts/CompetitionContext";
 import { Badge } from "@/components/ui/badge";
 
@@ -11,6 +12,15 @@ interface CompetitionResultsProps {
   startDate: string;
   endDate: string;
   initialBalance: number;
+}
+
+interface TradeStats {
+  totalTrades: number;
+  totalVolume: number;
+  uniqueStocks: number;
+  topStocks: { ticker: string; name: string; count: number }[];
+  mostActiveTeam: { name: string; count: number } | null;
+  tradesPerTeam: Record<string, number>;
 }
 
 const TROPHY_COLORS = [
@@ -28,16 +38,72 @@ export function CompetitionResults({
 }: CompetitionResultsProps) {
   const { teams } = useCompetition();
   const [results, setResults] = useState<CompetitionResult[]>([]);
+  const [stats, setStats] = useState<TradeStats | null>(null);
   const [loading, setLoading] = useState(true);
 
   const myTeamIds = new Set(teams.map((t) => t.id));
 
   useEffect(() => {
     setLoading(true);
-    getCompetitionResults(competitionId).then((data) => {
-      setResults(data);
+
+    const fetchAll = async () => {
+      const [resultsData, tradesRes] = await Promise.all([
+        getCompetitionResults(competitionId),
+        supabase
+          .from("trades")
+          .select("ticker, stock_name, side, total_sek, team_id")
+          .eq("competition_id", competitionId),
+      ]);
+
+      setResults(resultsData);
+
+      // Compute trade stats
+      const trades = (tradesRes.data || []) as any[];
+      if (trades.length > 0) {
+        const stockCounts: Record<string, { name: string; count: number }> = {};
+        const teamCounts: Record<string, number> = {};
+        let totalVolume = 0;
+        const tickers = new Set<string>();
+
+        for (const t of trades) {
+          tickers.add(t.ticker);
+          totalVolume += Math.abs(Number(t.total_sek));
+          // Stock popularity
+          if (!stockCounts[t.ticker]) {
+            stockCounts[t.ticker] = { name: t.stock_name || t.ticker, count: 0 };
+          }
+          stockCounts[t.ticker].count++;
+          // Team activity
+          teamCounts[t.team_id] = (teamCounts[t.team_id] || 0) + 1;
+        }
+
+        const topStocks = Object.entries(stockCounts)
+          .map(([ticker, { name, count }]) => ({ ticker, name, count }))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 5);
+
+        // Find most active team name from results
+        let mostActiveTeam: TradeStats["mostActiveTeam"] = null;
+        const topTeamEntry = Object.entries(teamCounts).sort((a, b) => b[1] - a[1])[0];
+        if (topTeamEntry) {
+          const teamResult = resultsData.find((r) => r.team_id === topTeamEntry[0]);
+          mostActiveTeam = { name: teamResult?.team_name || "Okänt", count: topTeamEntry[1] };
+        }
+
+        setStats({
+          totalTrades: trades.length,
+          totalVolume,
+          uniqueStocks: tickers.size,
+          topStocks,
+          mostActiveTeam,
+          tradesPerTeam: teamCounts,
+        });
+      }
+
       setLoading(false);
-    });
+    };
+
+    fetchAll();
   }, [competitionId]);
 
   if (loading) {
@@ -101,6 +167,69 @@ export function CompetitionResults({
         })}
       </div>
 
+      {/* Trade Statistics */}
+      {stats && (
+        <div className="space-y-3">
+          <h4 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+            <BarChart3 className="h-4 w-4" />
+            Tävlingsstatistik
+          </h4>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="rounded-xl border bg-card p-3 text-center">
+              <ArrowRightLeft className="h-4 w-4 mx-auto mb-1 text-muted-foreground" />
+              <p className="font-mono text-lg font-bold">{stats.totalTrades}</p>
+              <p className="text-[10px] text-muted-foreground">Totala affärer</p>
+            </div>
+            <div className="rounded-xl border bg-card p-3 text-center">
+              <TrendingUp className="h-4 w-4 mx-auto mb-1 text-muted-foreground" />
+              <p className="font-mono text-lg font-bold">{formatSEK(stats.totalVolume)}</p>
+              <p className="text-[10px] text-muted-foreground">Total omsättning</p>
+            </div>
+            <div className="rounded-xl border bg-card p-3 text-center">
+              <Hash className="h-4 w-4 mx-auto mb-1 text-muted-foreground" />
+              <p className="font-mono text-lg font-bold">{stats.uniqueStocks}</p>
+              <p className="text-[10px] text-muted-foreground">Unika aktier</p>
+            </div>
+            <div className="rounded-xl border bg-card p-3 text-center">
+              <Trophy className="h-4 w-4 mx-auto mb-1 text-muted-foreground" />
+              <p className="font-mono text-sm font-bold truncate">{stats.mostActiveTeam?.name}</p>
+              <p className="text-[10px] text-muted-foreground">
+                Mest aktiva ({stats.mostActiveTeam?.count} affärer)
+              </p>
+            </div>
+          </div>
+
+          {/* Most traded stocks */}
+          <div className="rounded-xl border bg-card p-3">
+            <p className="text-xs font-semibold text-muted-foreground mb-2">Mest handlade aktier</p>
+            <div className="space-y-1.5">
+              {stats.topStocks.map((stock, i) => (
+                <div key={stock.ticker} className="flex items-center gap-2">
+                  <span className="text-[10px] font-mono text-muted-foreground w-4">{i + 1}.</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold truncate">{stock.name}</span>
+                      <span className="text-[10px] font-mono text-muted-foreground">{stock.ticker}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-16 h-1.5 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-primary"
+                        style={{ width: `${(stock.count / stats.topStocks[0].count) * 100}%` }}
+                      />
+                    </div>
+                    <span className="text-[10px] font-mono text-muted-foreground w-8 text-right">
+                      {stock.count}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* My team summary */}
       {myResult && myResult.final_rank > 3 && (
         <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
@@ -150,6 +279,11 @@ export function CompetitionResults({
                     {entry.team_name}
                     {isOwn && <span className="ml-2 text-xs text-primary">(ditt lag)</span>}
                   </p>
+                  {stats && (
+                    <p className="text-[10px] text-muted-foreground">
+                      {stats.tradesPerTeam[entry.team_id] || 0} affärer
+                    </p>
+                  )}
                 </div>
                 <div className="text-right">
                   <p className="font-mono text-sm font-semibold">{formatSEK(entry.final_value)}</p>
