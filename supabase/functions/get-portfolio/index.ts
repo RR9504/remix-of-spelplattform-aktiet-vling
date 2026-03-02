@@ -25,6 +25,15 @@ serve(async (req) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceKey);
 
+    // Check if competition has ended
+    const { data: competition } = await supabase
+      .from("competitions")
+      .select("end_date")
+      .eq("id", competitionId)
+      .single();
+    const today = new Date().toISOString().split("T")[0];
+    const isEnded = competition && competition.end_date < today;
+
     // Fetch cash balance, holdings, short positions, and recent trades in parallel
     const [{ data: ct }, { data: holdings }, { data: shortPositions }, { data: recentTrades }] = await Promise.all([
       supabase
@@ -80,8 +89,8 @@ serve(async (req) => {
       }
     }
 
-    // Refresh stale prices by calling fetch-stock-price
-    const staleTickers = allTickers.filter((t) => {
+    // Refresh stale prices by calling fetch-stock-price (skip for ended competitions)
+    const staleTickers = isEnded ? [] : allTickers.filter((t) => {
       const cached = priceMap[t];
       if (!cached) return true;
       return (Date.now() - new Date(cached.updated_at).getTime()) > STALE_THRESHOLD_MS;
@@ -175,23 +184,24 @@ serve(async (req) => {
     // margin_reserved is NOT separate money — it's already included in cash_balance_sek
     const totalValue = cash + holdingsValue - shortLiabilities;
 
-    // Fire-and-forget: upsert today's portfolio snapshot without blocking the response
-    const today = new Date().toISOString().split("T")[0];
-    supabase
-      .from("portfolio_snapshots")
-      .upsert(
-        {
-          competition_id: competitionId,
-          team_id: teamId,
-          snapshot_date: today,
-          total_value_sek: Math.round(totalValue * 100) / 100,
-          cash_sek: Math.round(cash * 100) / 100,
-          holdings_value_sek: Math.round(holdingsValue * 100) / 100,
-        },
-        { onConflict: "competition_id,team_id,snapshot_date" }
-      )
-      .then(() => {})
-      .catch(() => {});
+    // Fire-and-forget: upsert today's portfolio snapshot (skip for ended competitions)
+    if (!isEnded) {
+      supabase
+        .from("portfolio_snapshots")
+        .upsert(
+          {
+            competition_id: competitionId,
+            team_id: teamId,
+            snapshot_date: today,
+            total_value_sek: Math.round(totalValue * 100) / 100,
+            cash_sek: Math.round(cash * 100) / 100,
+            holdings_value_sek: Math.round(holdingsValue * 100) / 100,
+          },
+          { onConflict: "competition_id,team_id,snapshot_date" }
+        )
+        .then(() => {})
+        .catch(() => {});
+    }
 
     return new Response(
       JSON.stringify({

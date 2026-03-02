@@ -25,7 +25,7 @@ serve(async (req) => {
     // Get competition info
     const { data: competition } = await supabase
       .from("competitions")
-      .select("initial_balance")
+      .select("initial_balance, end_date")
       .eq("id", competitionId)
       .single();
 
@@ -37,6 +37,48 @@ serve(async (req) => {
     }
 
     const startCapital = Number(competition.initial_balance);
+    const today = new Date().toISOString().split("T")[0];
+    const isEnded = competition.end_date < today;
+
+    // If competition has ended and is finalized, return frozen season_scores
+    if (isEnded) {
+      const { data: scores } = await supabase
+        .from("season_scores")
+        .select("team_id, final_rank, final_value, final_return_percent, points")
+        .eq("competition_id", competitionId)
+        .order("final_rank", { ascending: true });
+
+      if (scores && scores.length > 0) {
+        const teamIds = scores.map((s) => s.team_id);
+        const [{ data: teams }, { data: allMembers }] = await Promise.all([
+          supabase.from("teams").select("id, name").in("id", teamIds),
+          supabase.from("team_members").select("team_id, profiles(full_name, email)").in("team_id", teamIds),
+        ]);
+
+        const ranked = scores.map((s) => {
+          const team = teams?.find((t) => t.id === s.team_id);
+          const members = (allMembers || [])
+            .filter((m) => m.team_id === s.team_id)
+            .map((m: any) => m.profiles?.full_name || m.profiles?.email || "Okänd");
+          return {
+            rank: s.final_rank,
+            team_id: s.team_id,
+            team_name: team?.name || "Okänt lag",
+            total_value: s.final_value,
+            cash: 0,
+            holdings_value: 0,
+            return_amount: Math.round((s.final_value - startCapital) * 100) / 100,
+            return_percent: s.final_return_percent,
+            members,
+          };
+        });
+
+        return new Response(
+          JSON.stringify({ leaderboard: ranked, start_capital: startCapital }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
 
     // Get all teams in competition
     const { data: compTeams } = await supabase

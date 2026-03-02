@@ -86,8 +86,8 @@ export async function getPortfolio(
   try {
     const STALE_MS = 15 * 60 * 1000;
 
-    // All 5 queries in parallel — direct Supabase, no edge function
-    const [ctRes, holdingsRes, shortsRes, tradesRes] = await Promise.all([
+    // All queries in parallel — direct Supabase, no edge function
+    const [ctRes, holdingsRes, shortsRes, tradesRes, compRes] = await Promise.all([
       supabase
         .from("competition_teams")
         .select("cash_balance_sek, margin_reserved_sek")
@@ -112,7 +112,15 @@ export async function getPortfolio(
         .eq("team_id", teamId)
         .order("executed_at", { ascending: false })
         .limit(10),
+      supabase
+        .from("competitions")
+        .select("end_date")
+        .eq("id", competitionId)
+        .single(),
     ]);
+
+    const today = new Date().toISOString().split("T")[0];
+    const isEnded = compRes.data && (compRes.data as any).end_date < today;
 
     const ct = ctRes.data as any;
     if (!ct) return null;
@@ -197,12 +205,15 @@ export async function getPortfolio(
 
     // Fire-and-forget: call edge function in background for side effects
     // (snapshot upsert requires service role, stale price refresh triggers Yahoo API)
-    getAuthHeaders().then((headers) => {
-      fetch(
-        `${SUPABASE_URL}/functions/v1/get-portfolio?competition_id=${competitionId}&team_id=${teamId}`,
-        { headers }
-      ).catch(() => {});
-    }).catch(() => {});
+    // Skip for ended competitions — values should be frozen
+    if (!isEnded) {
+      getAuthHeaders().then((headers) => {
+        fetch(
+          `${SUPABASE_URL}/functions/v1/get-portfolio?competition_id=${competitionId}&team_id=${teamId}`,
+          { headers }
+        ).catch(() => {});
+      }).catch(() => {});
+    }
 
     return {
       cash,
