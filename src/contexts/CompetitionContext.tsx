@@ -20,6 +20,7 @@ interface CompetitionInfo {
 interface CompetitionContextType {
   teams: TeamInfo[];
   competitions: CompetitionInfo[];
+  allCompetitions: CompetitionInfo[];
   activeCompetition: CompetitionInfo | null;
   activeTeam: TeamInfo | null;
   setActiveCompetitionId: (id: string | null) => void;
@@ -32,6 +33,7 @@ interface CompetitionContextType {
 const CompetitionContext = createContext<CompetitionContextType>({
   teams: [],
   competitions: [],
+  allCompetitions: [],
   activeCompetition: null,
   activeTeam: null,
   setActiveCompetitionId: () => {},
@@ -136,9 +138,17 @@ export function CompetitionProvider({ children }: { children: ReactNode }) {
         const comps = (compData as unknown as CompetitionInfo[]) || [];
         setCompetitions(comps);
 
-        // Auto-select first competition and team if not set
-        if (!activeCompetitionId && comps.length > 0) {
-          setActiveCompetitionId(comps[0].id);
+        // Auto-select first active/upcoming competition (skip ended)
+        const today = new Date().toISOString().split("T")[0];
+        const activeComps = comps.filter((c) => c.end_date >= today);
+        if (!activeCompetitionId && activeComps.length > 0) {
+          setActiveCompetitionId(activeComps[0].id);
+        } else if (activeCompetitionId && comps.length > 0) {
+          // If currently selected competition has ended, switch to next active
+          const current = comps.find((c) => c.id === activeCompetitionId);
+          if (current && current.end_date < today && activeComps.length > 0) {
+            setActiveCompetitionId(activeComps[0].id);
+          }
         }
       } else {
         setCompetitions([]);
@@ -185,11 +195,16 @@ export function CompetitionProvider({ children }: { children: ReactNode }) {
   const activeCompetition = competitions.find((c) => c.id === activeCompetitionId) || null;
   const activeTeam = teams.find((t) => t.id === activeTeamId) || null;
 
+  // Filter out ended competitions for dashboard selector
+  const today = new Date().toISOString().split("T")[0];
+  const activeCompetitions = competitions.filter((c) => c.end_date >= today);
+
   return (
     <CompetitionContext.Provider
       value={{
         teams,
-        competitions,
+        competitions: activeCompetitions,
+        allCompetitions: competitions,
         activeCompetition,
         activeTeam,
         setActiveCompetitionId,

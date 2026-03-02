@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,12 +8,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Search, Users, Calendar, Loader2, Plus, Copy, Check, Link, TicketCheck } from "lucide-react";
+import { Search, Users, Calendar, Loader2, Plus, Copy, Check, Link, TicketCheck, Trophy } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompetition } from "@/contexts/CompetitionContext";
 import { formatSEK } from "@/lib/mockData";
 import { JoinCompetitionDialog } from "@/components/JoinCompetitionDialog";
+import { CompetitionResults } from "@/components/CompetitionResults";
+import { finalizeCompetition } from "@/lib/api";
 import { toast } from "sonner";
 
 interface Competition {
@@ -62,6 +64,12 @@ export default function Competitions() {
   const [joinCodeTarget, setJoinCodeTarget] = useState<{ id: string; name: string; start_date: string; end_date: string; initial_balance: number } | null>(null);
   const [joinCodeError, setJoinCodeError] = useState("");
 
+  // Results
+  const [finalizedIds, setFinalizedIds] = useState<Set<string>>(new Set());
+  const [finalizingIds, setFinalizingIds] = useState<Set<string>>(new Set());
+  const [resultsComp, setResultsComp] = useState<Competition | null>(null);
+  const autoFinalizeRef = useRef(false);
+
   const extractCode = (input: string): string => {
     const trimmed = input.trim();
     // Try to extract code from a URL like /join/competition/ABC123
@@ -99,6 +107,42 @@ export default function Competitions() {
     fetchCompetitions();
     fetchMyCompetitions();
   }, []);
+
+  // Check which ended competitions are already finalized
+  useEffect(() => {
+    if (myCompetitions.length === 0) return;
+    const endedIds = myCompetitions
+      .filter((c) => getStatus(c) === "ended")
+      .map((c) => c.id);
+    if (endedIds.length === 0) return;
+
+    supabase
+      .from("season_scores")
+      .select("competition_id")
+      .in("competition_id", endedIds)
+      .then(({ data }) => {
+        const ids = new Set((data || []).map((r: any) => r.competition_id as string));
+        setFinalizedIds(ids);
+
+        // Auto-finalize ended competitions that have no season_scores yet
+        if (!autoFinalizeRef.current) {
+          autoFinalizeRef.current = true;
+          for (const compId of endedIds) {
+            if (!ids.has(compId)) {
+              setFinalizingIds((prev) => new Set(prev).add(compId));
+              finalizeCompetition(compId).then(() => {
+                setFinalizedIds((prev) => new Set(prev).add(compId));
+                setFinalizingIds((prev) => {
+                  const next = new Set(prev);
+                  next.delete(compId);
+                  return next;
+                });
+              });
+            }
+          }
+        }
+      });
+  }, [myCompetitions]);
 
   const fetchCompetitions = async () => {
     setLoading(true);
@@ -306,14 +350,33 @@ export default function Competitions() {
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {myCompetitions.map((comp) => {
                 const status = getStatus(comp);
+                const isFinalized = finalizedIds.has(comp.id);
+                const isFinalizing = finalizingIds.has(comp.id);
+                const canShowResults = status === "ended" && isFinalized;
                 return (
-                  <Card key={comp.id} className="border-primary/20">
+                  <Card
+                    key={comp.id}
+                    className={`border-primary/20 ${canShowResults ? "cursor-pointer hover:bg-muted/50 transition-colors" : ""}`}
+                    onClick={canShowResults ? () => setResultsComp(comp) : undefined}
+                  >
                     <CardHeader className="pb-3">
                       <div className="flex items-center justify-between">
                         <CardTitle className="text-base">{comp.name}</CardTitle>
                         <div className="flex gap-1">
                           {!comp.is_public && (
                             <Badge variant="outline" className="text-[10px]">Privat</Badge>
+                          )}
+                          {status === "ended" && isFinalized && (
+                            <Badge variant="outline" className="text-[10px] border-yellow-500/30 text-yellow-600">
+                              <Trophy className="h-3 w-3 mr-1" />
+                              Resultat
+                            </Badge>
+                          )}
+                          {status === "ended" && isFinalizing && (
+                            <Badge variant="outline" className="text-[10px]">
+                              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                              Avslutas...
+                            </Badge>
                           )}
                           <Badge
                             variant={status === "active" ? "default" : "outline"}
@@ -333,7 +396,7 @@ export default function Competitions() {
                         {comp.start_date} – {comp.end_date} · {formatSEK(comp.initial_balance)}
                       </div>
                       {comp.invite_code && (
-                        <div className="space-y-1">
+                        <div className="space-y-1" onClick={(e) => e.stopPropagation()}>
                           <p className="text-xs text-muted-foreground">Inbjudningskod:</p>
                           <div className="flex items-center gap-2">
                             <code className="flex-1 min-w-0 rounded bg-muted px-2 py-1.5 font-mono text-[11px] sm:text-sm tracking-wider sm:tracking-widest text-center truncate">
@@ -557,6 +620,27 @@ export default function Competitions() {
                 {creating ? "Skapar..." : "Skapa tävling"}
               </Button>
             </form>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Results dialog */}
+      <Dialog open={!!resultsComp} onOpenChange={(open) => { if (!open) setResultsComp(null); }}>
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trophy className="h-5 w-5 text-yellow-500" />
+              Tävlingsresultat
+            </DialogTitle>
+          </DialogHeader>
+          {resultsComp && (
+            <CompetitionResults
+              competitionId={resultsComp.id}
+              competitionName={resultsComp.name}
+              startDate={resultsComp.start_date}
+              endDate={resultsComp.end_date}
+              initialBalance={resultsComp.initial_balance}
+            />
           )}
         </DialogContent>
       </Dialog>

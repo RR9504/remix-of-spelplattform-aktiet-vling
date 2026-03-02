@@ -524,6 +524,58 @@ export async function getInsiderTrades(ticker: string): Promise<InsiderTransacti
   }
 }
 
+// --- Competition Results (finalized) ---
+
+export async function finalizeCompetition(competitionId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const headers = await getAuthHeaders();
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/finalize-competition`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ competition_id: competitionId }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return { success: false, error: data.error || "Finalisering misslyckades" };
+    }
+    return { success: true };
+  } catch {
+    return { success: false, error: "Nätverksfel" };
+  }
+}
+
+export interface CompetitionResult {
+  team_id: string;
+  team_name: string;
+  final_rank: number;
+  final_value: number;
+  final_return_percent: number;
+  points: number;
+}
+
+export async function getCompetitionResults(competitionId: string): Promise<CompetitionResult[]> {
+  try {
+    const { data, error } = await supabase
+      .from("season_scores")
+      .select("team_id, final_rank, final_value, final_return_percent, points, teams(name)")
+      .eq("competition_id", competitionId)
+      .order("final_rank", { ascending: true });
+
+    if (error || !data) return [];
+
+    return (data as any[]).map((row) => ({
+      team_id: row.team_id,
+      team_name: (row.teams as any)?.name || "Okänt lag",
+      final_rank: row.final_rank,
+      final_value: row.final_value,
+      final_return_percent: row.final_return_percent,
+      points: row.points,
+    }));
+  } catch {
+    return [];
+  }
+}
+
 // --- Comparison Chart ---
 
 /**

@@ -90,7 +90,7 @@ serve(async (req) => {
         "competition_ended",
         `Tävlingen "${competition.name}" är avslutad!`,
         `Ni slutade på plats ${entry.rank} med ${entry.return_percent.toFixed(1)}% avkastning.`,
-        { competition_id, rank: entry.rank, return_percent: entry.return_percent }
+        { competition_id, rank: entry.rank, return_percent: entry.return_percent, link: "/competitions" }
       );
     }
 

@@ -13,7 +13,7 @@ import { toast } from "sonner";
 
 export default function ProfilePage() {
   const { user, signOut } = useAuth();
-  const { teams, competitions, activeCompetition, activeTeam, setActiveCompetitionId, setActiveTeamId } = useCompetition();
+  const { teams, allCompetitions: competitions, activeCompetition, activeTeam, setActiveCompetitionId, setActiveTeamId } = useCompetition();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [editing, setEditing] = useState(false);
