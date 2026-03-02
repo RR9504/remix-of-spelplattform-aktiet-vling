@@ -192,12 +192,27 @@ export function CompetitionProvider({ children }: { children: ReactNode }) {
     }
   }, [teams, competitions, activeCompetitionId, activeTeamId]);
 
-  const activeCompetition = competitions.find((c) => c.id === activeCompetitionId) || null;
   const activeTeam = teams.find((t) => t.id === activeTeamId) || null;
 
   // Filter out ended competitions for dashboard selector
   const today = new Date().toISOString().split("T")[0];
   const activeCompetitions = competitions.filter((c) => c.end_date >= today);
+
+  // activeCompetition must be an active/upcoming competition — never an ended one
+  const activeCompetition = activeCompetitions.find((c) => c.id === activeCompetitionId) || null;
+
+  // If cached activeCompetitionId points to an ended competition, auto-switch immediately
+  useEffect(() => {
+    if (!activeCompetitionId || competitions.length === 0) return;
+    const selected = competitions.find((c) => c.id === activeCompetitionId);
+    if (selected && selected.end_date < today) {
+      if (activeCompetitions.length > 0) {
+        setActiveCompetitionId(activeCompetitions[0].id);
+      } else {
+        setActiveCompetitionId(null);
+      }
+    }
+  }, [activeCompetitionId, competitions]);
 
   return (
     <CompetitionContext.Provider
