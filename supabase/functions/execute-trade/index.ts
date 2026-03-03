@@ -3,6 +3,10 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 import { notifyTeamMembers } from "../_shared/notify.ts";
 
+function formatNum(n: number): string {
+  return Math.round(n).toLocaleString("sv-SE");
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -105,6 +109,31 @@ serve(async (req) => {
       });
     }
 
+    // Enforce competition rules
+    const rules = competition.rules || {};
+    const isSETicker = ticker.endsWith(".ST");
+
+    if (rules.allow_shorts === false && (side === "short" || side === "cover")) {
+      return new Response(JSON.stringify({ success: false, error: "Blankning är inte tillåten i denna tävling" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (rules.market_filter === "SE" && !isSETicker) {
+      return new Response(JSON.stringify({ success: false, error: "Denna tävling tillåter bara svenska aktier" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (rules.market_filter === "US" && isSETicker) {
+      return new Response(JSON.stringify({ success: false, error: "Denna tävling tillåter bara amerikanska aktier" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Validate team is in competition
     const { data: ct } = await supabase
       .from("competition_teams")
@@ -158,7 +187,45 @@ serve(async (req) => {
       });
     }
 
-    const totalSek = shares * priceData.price * (priceData.exchange_rate || 1);
+    let totalSek = shares * priceData.price * (priceData.exchange_rate || 1);
+
+    // Apply transaction fee if configured
+    const feePct = Number(rules.transaction_fee_pct) || 0;
+    if (feePct > 0 && (side === "buy" || side === "short")) {
+      totalSek = totalSek * (1 + feePct / 100);
+    } else if (feePct > 0 && (side === "sell" || side === "cover")) {
+      totalSek = totalSek * (1 - feePct / 100);
+    }
+    totalSek = Math.round(totalSek * 100) / 100;
+
+    // Max position size check (for buys only)
+    if (rules.max_position_pct && side === "buy") {
+      const maxPct = Number(rules.max_position_pct);
+      if (maxPct > 0 && maxPct <= 100) {
+        // Get latest portfolio snapshot or use initial_balance
+        const { data: latestSnap } = await supabase
+          .from("portfolio_snapshots")
+          .select("total_value_sek")
+          .eq("competition_id", competition_id)
+          .eq("team_id", team_id)
+          .order("snapshot_date", { ascending: false })
+          .limit(1)
+          .single();
+
+        const portfolioValue = latestSnap ? Number(latestSnap.total_value_sek) : Number(competition.initial_balance);
+        const maxPositionSek = portfolioValue * (maxPct / 100);
+
+        if (totalSek > maxPositionSek) {
+          return new Response(JSON.stringify({
+            success: false,
+            error: `Maximal positionsstorlek är ${maxPct}% av portföljen (${formatNum(maxPositionSek)} SEK)`,
+          }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+    }
 
     let tradeResult: any;
     let tradeError: any;

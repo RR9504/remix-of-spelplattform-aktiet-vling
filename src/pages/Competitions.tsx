@@ -51,6 +51,10 @@ export default function Competitions() {
   const [isPublic, setIsPublic] = useState(false);
   const [description, setDescription] = useState("");
   const [maxTeams, setMaxTeams] = useState("");
+  const [allowShorts, setAllowShorts] = useState(true);
+  const [marketFilter, setMarketFilter] = useState<"all" | "SE" | "US">("all");
+  const [maxPositionPct, setMaxPositionPct] = useState("");
+  const [transactionFeePct, setTransactionFeePct] = useState("0");
   const [creating, setCreating] = useState(false);
   const [createdCode, setCreatedCode] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -242,6 +246,12 @@ export default function Competitions() {
         is_public: isPublic,
         description: description || null,
         max_teams: maxTeams ? Number(maxTeams) : null,
+        rules: {
+          allow_shorts: allowShorts,
+          market_filter: marketFilter,
+          max_position_pct: maxPositionPct ? Number(maxPositionPct) : null,
+          transaction_fee_pct: Number(transactionFeePct) || 0,
+        },
       } as any)
       .select()
       .single();
@@ -272,6 +282,10 @@ export default function Competitions() {
     setIsPublic(false);
     setDescription("");
     setMaxTeams("");
+    setAllowShorts(true);
+    setMarketFilter("all");
+    setMaxPositionPct("");
+    setTransactionFeePct("0");
     setCreatedCode(null);
   };
 
@@ -615,6 +629,55 @@ export default function Competitions() {
                   onChange={(e) => setMaxTeams(e.target.value)}
                 />
               </div>
+
+              {/* Competition rules */}
+              <div className="border rounded-lg p-3 space-y-3">
+                <p className="text-sm font-medium">Regler</p>
+
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-normal">Tillåt blankning</Label>
+                  <Switch checked={allowShorts} onCheckedChange={setAllowShorts} />
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-sm font-normal">Marknadsfilter</Label>
+                  <select
+                    className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                    value={marketFilter}
+                    onChange={(e) => setMarketFilter(e.target.value as "all" | "SE" | "US")}
+                  >
+                    <option value="all">Alla marknader</option>
+                    <option value="SE">Bara svenska aktier</option>
+                    <option value="US">Bara amerikanska aktier</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-sm font-normal">Max positionsstorlek % (valfritt)</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={100}
+                    placeholder="Ingen gräns"
+                    value={maxPositionPct}
+                    onChange={(e) => setMaxPositionPct(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-sm font-normal">Courtage %</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={5}
+                    step={0.1}
+                    placeholder="0"
+                    value={transactionFeePct}
+                    onChange={(e) => setTransactionFeePct(e.target.value)}
+                  />
+                </div>
+              </div>
+
               <Button type="submit" className="w-full" disabled={creating}>
                 {creating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                 {creating ? "Skapar..." : "Skapa tävling"}

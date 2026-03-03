@@ -27,6 +27,11 @@ const ORDER_TYPE_LABELS: Record<OrderType, string> = {
 
 export function TradeDialog({ stock, priceData: initialPriceData, onClose }: TradeDialogProps) {
   const { activeCompetition, activeTeam, cashBalance, refresh } = useCompetition();
+  const rules = (activeCompetition as any)?.rules || {};
+  const shortsAllowed = rules.allow_shorts !== false;
+  const mktFilter = rules.market_filter || "all";
+  const isSETicker = stock.ticker.endsWith(".ST");
+  const marketBlocked = (mktFilter === "SE" && !isSETicker) || (mktFilter === "US" && isSETicker);
   const [shares, setShares] = useState("");
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [loading, setLoading] = useState(false);
@@ -248,12 +253,23 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
                 Du behöver gå med i en tävling med ditt lag innan du kan handla.
               </p>
             </div>
+          ) : marketBlocked ? (
+            <div className="rounded-lg bg-yellow-500/10 border border-yellow-500/30 p-4 text-center">
+              <p className="font-medium text-yellow-600">
+                {mktFilter === "SE" ? "Bara svenska aktier tillåtna" : "Bara amerikanska aktier tillåtna"}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Denna tävling har ett marknadsfilter som inte tillåter handel i {stock.ticker}.
+              </p>
+            </div>
           ) : (
             <Tabs defaultValue={marketOpen ? "direct" : "limit"}>
               <TabsList className="w-full">
                 <TabsTrigger value="direct" className="flex-1 text-xs sm:text-sm">Direkt</TabsTrigger>
                 <TabsTrigger value="limit" className="flex-1 text-xs sm:text-sm">Limitorder</TabsTrigger>
-                <TabsTrigger value="short" className="flex-1 text-xs sm:text-sm">Blankning</TabsTrigger>
+                {shortsAllowed && (
+                  <TabsTrigger value="short" className="flex-1 text-xs sm:text-sm">Blankning</TabsTrigger>
+                )}
               </TabsList>
 
               <TabsContent value="direct" className="space-y-4 mt-4">
