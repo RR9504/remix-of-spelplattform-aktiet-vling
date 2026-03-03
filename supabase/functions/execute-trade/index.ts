@@ -66,7 +66,7 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, serviceKey);
 
-    // Validate team membership
+    // Validate team membership + get team captain info and trade limit
     const { data: membership } = await supabase
       .from("team_members")
       .select("id")
@@ -224,6 +224,26 @@ serve(async (req) => {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
+      }
+    }
+
+    // Check team trade limit for non-captain members
+    const { data: teamRow } = await supabase
+      .from("teams")
+      .select("captain_id, max_trade_sek")
+      .eq("id", team_id)
+      .single();
+
+    if (teamRow && teamRow.max_trade_sek && userId !== teamRow.captain_id) {
+      const maxSek = Number(teamRow.max_trade_sek);
+      if (totalSek > maxSek) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: `Handeln överskrider lagets gräns på ${formatNum(maxSek)} SEK per affär. Kontakta lagkaptenen.`,
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
     }
 

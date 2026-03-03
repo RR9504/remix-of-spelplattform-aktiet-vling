@@ -16,6 +16,7 @@ interface TeamData {
   name: string;
   captain_id: string;
   invite_code: string;
+  max_trade_sek: number | null;
 }
 
 interface MemberData {
@@ -66,7 +67,7 @@ export default function TeamPage() {
     const fetchTeam = async () => {
       const { data } = await supabase
         .from("teams")
-        .select("id, name, captain_id, invite_code")
+        .select("id, name, captain_id, invite_code, max_trade_sek")
         .eq("id", id)
         .single();
       setTeam(data as TeamData | null);
@@ -366,6 +367,42 @@ export default function TeamPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Trade limit - visible to captain */}
+        {isCaptain && team && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Handelsgräns per affär</CardTitle>
+              <CardDescription className="text-xs">
+                Begränsa hur mycket icke-kaptener kan handla per affär (SEK). Lämna tomt för ingen gräns.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex gap-2">
+                <Input
+                  type="number"
+                  min={0}
+                  placeholder="Ingen gräns"
+                  defaultValue={team.max_trade_sek ?? ""}
+                  onBlur={async (e) => {
+                    const val = e.target.value ? Number(e.target.value) : null;
+                    const { error } = await supabase
+                      .from("teams")
+                      .update({ max_trade_sek: val } as any)
+                      .eq("id", team.id);
+                    if (error) {
+                      toast.error("Kunde inte uppdatera handelsgräns");
+                    } else {
+                      setTeam({ ...team, max_trade_sek: val });
+                      toast.success(val ? `Handelsgräns satt till ${val.toLocaleString("sv-SE")} SEK` : "Handelsgräns borttagen");
+                    }
+                  }}
+                  className="font-mono"
+                />
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Add member - visible to captain */}
         {isCaptain && (
