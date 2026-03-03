@@ -60,14 +60,7 @@ serve(async (req) => {
       .eq("team_id", team_id);
     const holdingsCount = holdings?.length ?? 0;
 
-    // Get portfolio value for return calculation
-    const { data: ct } = await supabase
-      .from("competition_teams")
-      .select("cash_balance_sek")
-      .eq("competition_id", competition_id)
-      .eq("team_id", team_id)
-      .single();
-
+    // Get portfolio value for return calculation — use latest snapshot for full value
     const { data: competition } = await supabase
       .from("competitions")
       .select("initial_balance")
@@ -75,12 +68,68 @@ serve(async (req) => {
       .single();
 
     let returnPercent = 0;
-    if (ct && competition) {
-      // Simple estimate (just cash for now - full portfolio value would need price lookup)
-      const cash = Number(ct.cash_balance_sek);
+    if (competition) {
       const initial = Number(competition.initial_balance);
-      // This is a rough estimate - the actual return needs portfolio value
-      returnPercent = ((cash - initial) / initial) * 100;
+
+      // Try latest portfolio snapshot (includes cash + holdings value)
+      const { data: latestSnapshot } = await supabase
+        .from("portfolio_snapshots")
+        .select("total_value_sek")
+        .eq("competition_id", competition_id)
+        .eq("team_id", team_id)
+        .order("snapshot_date", { ascending: false })
+        .limit(1)
+        .single();
+
+      if (latestSnapshot) {
+        returnPercent = ((Number(latestSnapshot.total_value_sek) - initial) / initial) * 100;
+      } else {
+        // Fallback to cash only if no snapshots exist yet
+        const { data: ct } = await supabase
+          .from("competition_teams")
+          .select("cash_balance_sek")
+          .eq("competition_id", competition_id)
+          .eq("team_id", team_id)
+          .single();
+        if (ct) {
+          returnPercent = ((Number(ct.cash_balance_sek) - initial) / initial) * 100;
+        }
+      }
+    }
+
+    // Check for bought_the_dip: did the team buy a stock below their average cost?
+    let boughtTheDip = false;
+    if (holdings && holdings.length > 0) {
+      // Get the latest buy trade for this team
+      const { data: latestBuy } = await supabase
+        .from("trades")
+        .select("ticker, price_per_share, exchange_rate")
+        .eq("competition_id", competition_id)
+        .eq("team_id", team_id)
+        .eq("side", "buy")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single();
+
+      if (latestBuy) {
+        // Get the avg cost for this ticker from team_holdings
+        const { data: holding } = await supabase
+          .from("team_holdings")
+          .select("avg_cost_per_share_sek")
+          .eq("competition_id", competition_id)
+          .eq("team_id", team_id)
+          .eq("ticker", latestBuy.ticker)
+          .single();
+
+        if (holding) {
+          const buyPriceSek = Number(latestBuy.price_per_share) * Number(latestBuy.exchange_rate);
+          const avgCost = Number(holding.avg_cost_per_share_sek);
+          // Bought below avg cost (averaged down) — at least 5% below
+          if (avgCost > 0 && buyPriceSek < avgCost * 0.95) {
+            boughtTheDip = true;
+          }
+        }
+      }
     }
 
     let unlocked = 0;
@@ -113,7 +162,10 @@ serve(async (req) => {
         case "first_short":
           earned = (shortCount ?? 0) >= 1;
           break;
-        // bought_the_dip and competition_winner require more complex checks
+        case "bought_the_dip":
+          earned = boughtTheDip;
+          break;
+        // competition_winner is handled by finalize-competition
         default:
           break;
       }

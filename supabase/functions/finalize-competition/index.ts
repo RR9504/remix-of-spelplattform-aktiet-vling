@@ -79,6 +79,20 @@ serve(async (req) => {
       });
     }
 
+    // Check if already finalized — prevent duplicate processing and notifications
+    const { data: existingScores } = await supabase
+      .from("season_scores")
+      .select("id")
+      .eq("competition_id", competition_id)
+      .limit(1);
+
+    if (existingScores && existingScores.length > 0) {
+      return new Response(
+        JSON.stringify({ message: "Already finalized", scores: existingScores.length }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Get leaderboard
     const leaderboardResp = await fetch(
       `${supabaseUrl}/functions/v1/get-leaderboard?competition_id=${competition_id}`,
