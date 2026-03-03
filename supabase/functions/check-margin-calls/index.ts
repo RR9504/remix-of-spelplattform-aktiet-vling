@@ -9,8 +9,17 @@ serve(async (req) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    // Verify caller is using service role key (cron jobs / internal calls only)
+    const authHeader = req.headers.get("Authorization");
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    if (!authHeader || !authHeader.includes(serviceKey)) {
+      return new Response(JSON.stringify({ error: "Unauthorized — service role required" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabase = createClient(supabaseUrl, serviceKey);
 
     // Get all open short positions
@@ -59,12 +68,21 @@ serve(async (req) => {
       const minMargin = currentValue * 1.2; // 120% requirement
 
       if (Number(pos.margin_reserved_sek) < minMargin) {
-        // Force cover
+        // Force cover — need a valid profile_id for executed_by
         try {
+          const { data: teamMember } = await supabase
+            .from("team_members")
+            .select("profile_id")
+            .eq("team_id", pos.team_id)
+            .limit(1)
+            .single();
+
+          const executedBy = teamMember?.profile_id || pos.team_id;
+
           const { data: coverResult } = await supabase.rpc("execute_cover", {
             _competition_id: pos.competition_id,
             _team_id: pos.team_id,
-            _executed_by: pos.team_id, // system action
+            _executed_by: executedBy,
             _ticker: pos.ticker,
             _stock_name: priceInfo.stock_name,
             _shares: Number(pos.shares),

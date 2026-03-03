@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
+import { notifyTeamMembers } from "../_shared/notify.ts";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -8,8 +9,17 @@ serve(async (req) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    // Verify caller is using service role key (cron jobs / internal calls only)
+    const authHeader = req.headers.get("Authorization");
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    if (!authHeader || !authHeader.includes(serviceKey)) {
+      return new Response(JSON.stringify({ error: "Unauthorized — service role required" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabase = createClient(supabaseUrl, serviceKey);
 
     // Get all pending orders
@@ -57,11 +67,32 @@ serve(async (req) => {
     for (const order of pendingOrders) {
       // Check expiration
       if (new Date(order.expires_at) < now) {
+        // Release reserved funds for limit_buy orders
+        if (order.order_type === "limit_buy" && Number(order.reserved_amount_sek) > 0) {
+          await supabase.rpc("release_order_funds", { _order_id: order.id });
+        }
         await supabase
           .from("pending_orders")
-          .update({ status: "expired" })
+          .update({ status: "expired", reserved_amount_sek: 0 })
           .eq("id", order.id);
         expired++;
+
+        // Notify team about expired order
+        const typeLabel = order.order_type === "limit_buy" ? "Limitköp" :
+          order.order_type === "limit_sell" ? "Limitsälj" :
+          order.order_type === "stop_loss" ? "Stop-loss" : "Take-profit";
+        try {
+          await notifyTeamMembers(
+            supabase,
+            order.team_id,
+            "order_expired",
+            `Order utgången: ${order.ticker}`,
+            `${typeLabel} för ${order.shares} st ${order.stock_name} har utgått.`,
+            { order_id: order.id, ticker: order.ticker, order_type: order.order_type }
+          );
+        } catch (e) {
+          console.error(`Failed to notify about expired order ${order.id}:`, e);
+        }
         continue;
       }
 
@@ -96,10 +127,42 @@ serve(async (req) => {
           _stock_name: priceInfo.stock_name,
         });
 
+        const typeLabel = order.order_type === "limit_buy" ? "Limitköp" :
+          order.order_type === "limit_sell" ? "Limitsälj" :
+          order.order_type === "stop_loss" ? "Stop-loss" : "Take-profit";
+
         if (!fillError && result?.success) {
           filled++;
+          // Notify team about filled order
+          try {
+            const sideLabel = order.order_type === "limit_buy" ? "Köpt" : "Sålt";
+            const totalSek = Math.round(order.shares * priceInfo.price_sek);
+            await notifyTeamMembers(
+              supabase,
+              order.team_id,
+              "order_filled",
+              `${typeLabel} utförd: ${order.ticker}`,
+              `${sideLabel} ${order.shares} st ${order.stock_name} för ${totalSek} SEK (${typeLabel.toLowerCase()}).`,
+              { order_id: order.id, ticker: order.ticker, order_type: order.order_type, total_sek: totalSek }
+            );
+          } catch (e) {
+            console.error(`Failed to notify about filled order ${order.id}:`, e);
+          }
         } else {
           console.error(`Failed to fill order ${order.id}:`, fillError || result?.error);
+          // Notify team about failed order
+          try {
+            await notifyTeamMembers(
+              supabase,
+              order.team_id,
+              "order_failed",
+              `${typeLabel} misslyckades: ${order.ticker}`,
+              `${typeLabel} för ${order.shares} st ${order.stock_name} kunde inte utföras: ${result?.error || fillError?.message || "Okänt fel"}`,
+              { order_id: order.id, ticker: order.ticker, order_type: order.order_type }
+            );
+          } catch (e) {
+            console.error(`Failed to notify about failed order ${order.id}:`, e);
+          }
         }
       }
     }

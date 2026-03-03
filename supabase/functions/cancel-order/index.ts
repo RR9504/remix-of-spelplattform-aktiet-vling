@@ -20,17 +20,20 @@ serve(async (req) => {
     }
 
     const token = authHeader.replace("Bearer ", "");
-    let userId: string;
-    try {
-      const payload = JSON.parse(atob(token.split(".")[1]));
-      userId = payload.sub;
-      if (!userId) throw new Error("No sub");
-    } catch {
+
+    // Create a user-scoped client to verify the JWT
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const { data: { user: authUser }, error: authError } = await createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: `Bearer ${token}` } },
+    }).auth.getUser();
+
+    if (authError || !authUser) {
       return new Response(JSON.stringify({ success: false, error: "Ogiltig token" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    const userId = authUser.id;
 
     const { order_id } = await req.json();
 
@@ -81,10 +84,15 @@ serve(async (req) => {
       });
     }
 
+    // Release reserved funds if limit_buy
+    if (order.order_type === "limit_buy" && Number(order.reserved_amount_sek) > 0) {
+      await supabase.rpc("release_order_funds", { _order_id: order_id });
+    }
+
     // Cancel order
     const { error: updateError } = await supabase
       .from("pending_orders")
-      .update({ status: "cancelled", cancelled_at: new Date().toISOString() })
+      .update({ status: "cancelled", cancelled_at: new Date().toISOString(), reserved_amount_sek: 0 })
       .eq("id", order_id);
 
     if (updateError) {

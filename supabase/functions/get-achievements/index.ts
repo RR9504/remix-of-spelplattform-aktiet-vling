@@ -8,6 +8,9 @@ serve(async (req) => {
   }
 
   try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
     const url = new URL(req.url);
     const profileId = url.searchParams.get("profile_id");
 
@@ -19,23 +22,24 @@ serve(async (req) => {
       });
     }
 
-    // If no profile_id, use the auth user
-    let userId = profileId;
-    if (!userId) {
-      const token = authHeader.replace("Bearer ", "");
-      try {
-        const payload = JSON.parse(atob(token.split(".")[1]));
-        userId = payload.sub;
-      } catch {
-        return new Response(JSON.stringify({ error: "Ogiltig token" }), {
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
+    const token = authHeader.replace("Bearer ", "");
+
+    // Create a user-scoped client to verify the JWT
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const { data: { user: authUser }, error: authError } = await createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: `Bearer ${token}` } },
+    }).auth.getUser();
+
+    if (authError || !authUser) {
+      return new Response(JSON.stringify({ success: false, error: "Ogiltig token" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    // If profile_id is provided, use it; otherwise use the authenticated user's ID
+    const userId = profileId || authUser.id;
+
     const supabase = createClient(supabaseUrl, serviceKey);
 
     // Get all achievements

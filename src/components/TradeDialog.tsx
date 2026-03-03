@@ -341,9 +341,13 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
                   <Input
                     type="number"
                     min={1}
+                    max={100000}
                     placeholder="0"
                     value={shares}
-                    onChange={(e) => setShares(e.target.value)}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === "" || (Number(v) >= 0 && Number(v) <= 100000)) setShares(v);
+                    }}
                     className="font-mono"
                   />
                 </div>
@@ -526,9 +530,13 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
                   <Input
                     type="number"
                     min={1}
+                    max={100000}
                     placeholder="0"
                     value={shares}
-                    onChange={(e) => setShares(e.target.value)}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === "" || (Number(v) >= 0 && Number(v) <= 100000)) setShares(v);
+                    }}
                     className="font-mono"
                   />
                 </div>

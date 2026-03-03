@@ -20,22 +20,32 @@ serve(async (req) => {
     }
 
     const token = authHeader.replace("Bearer ", "");
-    let userId: string;
-    try {
-      const payload = JSON.parse(atob(token.split(".")[1]));
-      userId = payload.sub;
-      if (!userId) throw new Error("No sub");
-    } catch {
+
+    // Create a user-scoped client to verify the JWT
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const { data: { user: authUser }, error: authError } = await createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: `Bearer ${token}` } },
+    }).auth.getUser();
+
+    if (authError || !authUser) {
       return new Response(JSON.stringify({ success: false, error: "Ogiltig token" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    const userId = authUser.id;
 
     const { competition_id, team_id, ticker, stock_name, order_type, target_price, shares, currency } = await req.json();
 
     if (!competition_id || !team_id || !ticker || !order_type || !target_price || !shares || shares <= 0) {
       return new Response(JSON.stringify({ success: false, error: "Ogiltiga parametrar" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (shares > 100000) {
+      return new Response(JSON.stringify({ success: false, error: "Max 100 000 aktier per order" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -137,6 +147,52 @@ serve(async (req) => {
       });
     }
 
+    // For limit_buy: reserve funds upfront so cash can't be double-spent
+    let reservedAmountSek = 0;
+    if (order_type === "limit_buy") {
+      reservedAmountSek = Math.round(shares * target_price * 100) / 100;
+
+      // Atomically check balance and reserve via RPC
+      const { data: ct2 } = await supabase
+        .from("competition_teams")
+        .select("cash_balance_sek, margin_reserved_sek")
+        .eq("competition_id", competition_id)
+        .eq("team_id", team_id)
+        .single();
+
+      if (!ct2) {
+        return new Response(JSON.stringify({ success: false, error: "Laget hittades inte i tävlingen" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const availableCash = Number(ct2.cash_balance_sek) - Number(ct2.margin_reserved_sek);
+      if (availableCash < reservedAmountSek) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: `Otillräckligt saldo för limitorder. Tillgängligt: ${Math.round(availableCash)} SEK, behöver: ${Math.round(reservedAmountSek)} SEK`,
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Deduct reserved amount from cash
+      const { error: reserveError } = await supabase
+        .from("competition_teams")
+        .update({ cash_balance_sek: Number(ct2.cash_balance_sek) - reservedAmountSek })
+        .eq("competition_id", competition_id)
+        .eq("team_id", team_id);
+
+      if (reserveError) {
+        return new Response(JSON.stringify({ success: false, error: "Kunde inte reservera medel: " + reserveError.message }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
     // Create pending order
     const { data: order, error: insertError } = await supabase
       .from("pending_orders")
@@ -152,12 +208,31 @@ serve(async (req) => {
         currency: currency || priceData.currency || "SEK",
         status: "pending",
         reference_avg_cost_sek: referenceAvgCostSek,
+        reserved_amount_sek: reservedAmountSek,
         expires_at: competition.end_date + "T23:59:59Z",
       })
       .select()
       .single();
 
     if (insertError) {
+      // If order creation failed, release the reserved funds
+      if (reservedAmountSek > 0) {
+        await supabase.rpc("release_order_funds", { _order_id: "" }).catch(() => {});
+        // Fallback: directly add back
+        const { data: ct3 } = await supabase
+          .from("competition_teams")
+          .select("cash_balance_sek")
+          .eq("competition_id", competition_id)
+          .eq("team_id", team_id)
+          .single();
+        if (ct3) {
+          await supabase
+            .from("competition_teams")
+            .update({ cash_balance_sek: Number(ct3.cash_balance_sek) + reservedAmountSek })
+            .eq("competition_id", competition_id)
+            .eq("team_id", team_id);
+        }
+      }
       return new Response(JSON.stringify({ success: false, error: insertError.message }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

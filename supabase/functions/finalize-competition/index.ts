@@ -19,6 +19,31 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const token = authHeader.replace("Bearer ", "");
+
+    // Create a user-scoped client to verify the JWT
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const { data: { user: authUser }, error: authError } = await createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: `Bearer ${token}` } },
+    }).auth.getUser();
+
+    if (authError || !authUser) {
+      return new Response(JSON.stringify({ error: "Ogiltig token" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const userId = authUser.id;
+
     const supabase = createClient(supabaseUrl, serviceKey);
 
     const { competition_id } = await req.json();
@@ -40,6 +65,16 @@ serve(async (req) => {
     if (!competition) {
       return new Response(JSON.stringify({ error: "Competition not found" }), {
         status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Only creator can finalize before end_date; anyone can finalize after it has ended
+    const today = new Date().toISOString().split("T")[0];
+    const isEnded = competition.end_date < today;
+    if (competition.created_by !== userId && !isEnded) {
+      return new Response(JSON.stringify({ error: "Bara tävlingens skapare kan finalisera innan den avslutats" }), {
+        status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

@@ -21,22 +21,32 @@ serve(async (req) => {
     }
 
     const token = authHeader.replace("Bearer ", "");
-    let userId: string;
-    try {
-      const payload = JSON.parse(atob(token.split(".")[1]));
-      userId = payload.sub;
-      if (!userId) throw new Error("No sub in JWT");
-    } catch {
+
+    // Create a user-scoped client to verify the JWT
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const { data: { user: authUser }, error: authError } = await createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: `Bearer ${token}` } },
+    }).auth.getUser();
+
+    if (authError || !authUser) {
       return new Response(JSON.stringify({ success: false, error: "Ogiltig token" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    const userId = authUser.id;
 
     const { competition_id, team_id, ticker, side, shares } = await req.json();
 
     if (!competition_id || !team_id || !ticker || !side || !shares || shares <= 0) {
       return new Response(JSON.stringify({ success: false, error: "Ogiltiga parametrar" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (shares > 100000) {
+      return new Response(JSON.stringify({ success: false, error: "Max 100 000 aktier per affär" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
