@@ -19,6 +19,7 @@ import StockDetail from "./pages/StockDetail";
 import TeamProfile from "./pages/TeamProfile";
 import JoinLanding from "./pages/JoinLanding";
 import Watchlist from "./pages/Watchlist";
+import Analytics from "./pages/Analytics";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 
@@ -67,6 +68,7 @@ const App = () => (
                 <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
                 <Route path="/highlights" element={<ProtectedRoute><Highlights /></ProtectedRoute>} />
                 <Route path="/watchlist" element={<ProtectedRoute><Watchlist /></ProtectedRoute>} />
+                <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
                 <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
                 <Route path="/stock/:ticker" element={<ProtectedRoute><StockDetail /></ProtectedRoute>} />
                 <Route path="/join/:type/:code" element={<JoinLanding />} />

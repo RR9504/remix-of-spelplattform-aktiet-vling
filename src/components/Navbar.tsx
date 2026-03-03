@@ -30,6 +30,7 @@ const navItems = [
   { path: "/competitions", label: "Tävlingar", icon: Globe },
   { path: "/watchlist", label: "Bevakning", icon: Eye },
   { path: "/history", label: "Historik", icon: History },
+  { path: "/analytics", label: "Analys", icon: TrendingUp },
   { path: "/highlights", label: "Highlights", icon: Sparkles },
 ];
 
@@ -45,6 +46,7 @@ const bottomTabs = [
 const moreItems = [
   { path: "/competitions", label: "Tävlingar", icon: Globe },
   { path: "/history", label: "Historik", icon: History },
+  { path: "/analytics", label: "Analys", icon: TrendingUp },
   { path: "/highlights", label: "Highlights", icon: Sparkles },
   { path: "/team", label: "Lag", icon: Users },
   { path: "/profile", label: "Profil", icon: User },
