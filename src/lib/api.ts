@@ -518,6 +518,28 @@ export async function removeFromWatchlist(ticker: string): Promise<boolean> {
   }
 }
 
+export async function updateWatchlistAlert(
+  ticker: string,
+  thresholdPercent: number | null
+): Promise<boolean> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+    const { error } = await supabase
+      .from("watchlist")
+      .update({
+        alert_threshold_percent: thresholdPercent,
+        last_alert_price_sek: null, // Reset reference price
+        last_alerted_at: null,
+      })
+      .eq("profile_id", user.id)
+      .eq("ticker", ticker);
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
 // --- Insider Trades ---
 
 export async function getInsiderTrades(ticker: string): Promise<InsiderTransaction[]> {

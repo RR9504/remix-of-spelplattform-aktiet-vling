@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Loader2, Star, Eye } from "lucide-react";
+import { Loader2, Star, Eye, Bell, BellOff } from "lucide-react";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { formatSEK } from "@/lib/mockData";
-import { getWatchlist, removeFromWatchlist } from "@/lib/api";
+import { getWatchlist, removeFromWatchlist, updateWatchlistAlert } from "@/lib/api";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { WatchlistItem } from "@/types/trading";
@@ -15,6 +17,8 @@ interface WatchlistItemWithPrice extends WatchlistItem {
   current_price_sek?: number;
   change_percent?: number;
 }
+
+const ALERT_PRESETS = [3, 5, 10];
 
 const Watchlist = () => {
   const [items, setItems] = useState<WatchlistItemWithPrice[]>([]);
@@ -67,6 +71,26 @@ const Watchlist = () => {
     }
   };
 
+  const handleSetAlert = async (ticker: string, threshold: number | null) => {
+    const ok = await updateWatchlistAlert(ticker, threshold);
+    if (ok) {
+      setItems((prev) =>
+        prev.map((item) =>
+          item.ticker === ticker
+            ? { ...item, alert_threshold_percent: threshold, last_alert_price_sek: null, last_alerted_at: null }
+            : item
+        )
+      );
+      if (threshold) {
+        toast.success(`Prisvarning satt: ${threshold}% för ${ticker}`);
+      } else {
+        toast.success(`Prisvarning borttagen för ${ticker}`);
+      }
+    } else {
+      toast.error("Kunde inte uppdatera prisvarning");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -98,7 +122,7 @@ const Watchlist = () => {
                   <TableHead>Aktie</TableHead>
                   <TableHead className="text-right">Kurs (SEK)</TableHead>
                   <TableHead className="text-right">Förändring</TableHead>
-                  <TableHead className="text-right">Tillagd</TableHead>
+                  <TableHead className="text-right">Varning</TableHead>
                   <TableHead className="text-right"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -106,6 +130,7 @@ const Watchlist = () => {
                 {items.map((item) => {
                   const isSE = item.ticker.endsWith(".ST");
                   const changePositive = (item.change_percent ?? 0) >= 0;
+                  const hasAlert = item.alert_threshold_percent != null;
 
                   return (
                     <TableRow key={item.id}>
@@ -137,8 +162,12 @@ const Watchlist = () => {
                           ? `${changePositive ? "+" : ""}${item.change_percent.toFixed(2)}%`
                           : "–"}
                       </TableCell>
-                      <TableCell className="text-right text-sm text-muted-foreground">
-                        {new Date(item.added_at).toLocaleDateString("sv-SE")}
+                      <TableCell className="text-right">
+                        <AlertPopover
+                          ticker={item.ticker}
+                          currentThreshold={item.alert_threshold_percent}
+                          onSet={handleSetAlert}
+                        />
                       </TableCell>
                       <TableCell className="text-right">
                         <Button
@@ -162,5 +191,95 @@ const Watchlist = () => {
     </div>
   );
 };
+
+function AlertPopover({
+  ticker,
+  currentThreshold,
+  onSet,
+}: {
+  ticker: string;
+  currentThreshold: number | null;
+  onSet: (ticker: string, threshold: number | null) => void;
+}) {
+  const [custom, setCustom] = useState("");
+  const hasAlert = currentThreshold != null;
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          title={hasAlert ? `Varning vid ${currentThreshold}%` : "Sätt prisvarning"}
+          className="relative"
+        >
+          {hasAlert ? (
+            <Bell className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+          ) : (
+            <BellOff className="h-4 w-4 text-muted-foreground" />
+          )}
+          {hasAlert && (
+            <span className="absolute -top-0.5 -right-0.5 text-[9px] font-bold text-yellow-500">
+              {currentThreshold}%
+            </span>
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-52 p-3" align="end">
+        <p className="text-xs font-medium mb-2">Prisvarning för {ticker}</p>
+        <p className="text-[11px] text-muted-foreground mb-3">
+          Notis vid prisförändring:
+        </p>
+        <div className="flex gap-1.5 mb-2">
+          {ALERT_PRESETS.map((pct) => (
+            <Button
+              key={pct}
+              variant={currentThreshold === pct ? "default" : "outline"}
+              size="sm"
+              className="flex-1 text-xs h-7"
+              onClick={() => onSet(ticker, currentThreshold === pct ? null : pct)}
+            >
+              {pct}%
+            </Button>
+          ))}
+        </div>
+        <div className="flex gap-1.5">
+          <Input
+            type="number"
+            min={0.5}
+            max={50}
+            step={0.5}
+            placeholder="Eget %"
+            value={custom}
+            onChange={(e) => setCustom(e.target.value)}
+            className="h-7 text-xs"
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs px-2"
+            disabled={!custom || Number(custom) <= 0}
+            onClick={() => {
+              onSet(ticker, Number(custom));
+              setCustom("");
+            }}
+          >
+            OK
+          </Button>
+        </div>
+        {hasAlert && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full mt-2 h-7 text-xs text-muted-foreground"
+            onClick={() => onSet(ticker, null)}
+          >
+            Ta bort varning
+          </Button>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 export default Watchlist;

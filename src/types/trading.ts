@@ -252,6 +252,9 @@ export interface WatchlistItem {
   ticker: string;
   stock_name: string | null;
   added_at: string;
+  alert_threshold_percent: number | null;
+  last_alert_price_sek: number | null;
+  last_alerted_at: string | null;
 }
 
 // --- Comparison Chart ---
