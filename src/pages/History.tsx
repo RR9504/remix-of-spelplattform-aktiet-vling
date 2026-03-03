@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Loader2, ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { formatSEK } from "@/lib/mockData";
 import { getTradeHistory } from "@/lib/api";
 import { useCompetition } from "@/contexts/CompetitionContext";
@@ -67,9 +67,44 @@ const History = () => {
     <div className="min-h-screen bg-background">
       <Navbar />
       <main className="container py-6 pb-20 md:pb-6 space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold">Transaktionshistorik</h1>
-          <p className="text-muted-foreground text-sm">Alla genomförda affärer</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">Transaktionshistorik</h1>
+            <p className="text-muted-foreground text-sm">Alla genomförda affärer</p>
+          </div>
+          {trades.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const header = "Datum,Ticker,Aktie,Typ,Antal,Pris/st,Valuta,Växelkurs,Total (SEK),Realiserad P&L\n";
+                const rows = trades.map((t) =>
+                  [
+                    new Date(t.executed_at).toLocaleDateString("sv-SE"),
+                    t.ticker,
+                    `"${t.stock_name}"`,
+                    t.side,
+                    t.shares,
+                    t.price_per_share,
+                    t.currency,
+                    t.exchange_rate,
+                    t.total_sek,
+                    t.realized_pnl_sek ?? "",
+                  ].join(",")
+                ).join("\n");
+                const blob = new Blob([header + rows], { type: "text/csv" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `trades_${activeCompetition?.name || "export"}.csv`;
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+            >
+              <Download className="h-4 w-4 mr-1" />
+              CSV
+            </Button>
+          )}
         </div>
 
         {!activeCompetition ? (

@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Search, Users, Calendar, Loader2, Plus, Copy, Check, Link, TicketCheck, Trophy } from "lucide-react";
+import { Search, Users, Calendar, Loader2, Plus, Copy, Check, Link, TicketCheck, Trophy, Repeat } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompetition } from "@/contexts/CompetitionContext";
@@ -435,6 +435,31 @@ export default function Competitions() {
                             </Button>
                           </div>
                         </div>
+                      )}
+                      {status === "ended" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full text-xs"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCompName(comp.name + " (kopia)");
+                            setBalance(String(comp.initial_balance));
+                            setIsPublic(comp.is_public || false);
+                            setDescription((comp as any).description || "");
+                            setMaxTeams((comp as any).max_teams ? String((comp as any).max_teams) : "");
+                            const r = (comp as any).rules || {};
+                            setAllowShorts(r.allow_shorts !== false);
+                            setMarketFilter(r.market_filter || "all");
+                            setMaxPositionPct(r.max_position_pct ? String(r.max_position_pct) : "");
+                            setTransactionFeePct(String(r.transaction_fee_pct || 0));
+                            setShowCreate(true);
+                            toast.info("Inställningar kopierade — justera datum och skapa!");
+                          }}
+                        >
+                          <Repeat className="h-3 w-3 mr-1" />
+                          Kopiera inställningar
+                        </Button>
                       )}
                     </CardContent>
                   </Card>
