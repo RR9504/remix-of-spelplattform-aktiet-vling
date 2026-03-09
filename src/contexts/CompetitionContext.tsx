@@ -49,12 +49,15 @@ export const useCompetition = () => useContext(CompetitionContext);
 
 const CACHE_KEY = "sa_competition_ctx";
 
-function restoreCache(): {
+interface CacheData {
   teams: TeamInfo[];
   competitions: CompetitionInfo[];
+  competitionTeamMap: Record<string, string[]>;
   activeCompetitionId: string | null;
   activeTeamId: string | null;
-} | null {
+}
+
+function restoreCache(): CacheData | null {
   try {
     const raw = localStorage.getItem(CACHE_KEY);
     if (!raw) return null;
@@ -66,12 +69,7 @@ function restoreCache(): {
   }
 }
 
-function saveCache(data: {
-  teams: TeamInfo[];
-  competitions: CompetitionInfo[];
-  activeCompetitionId: string | null;
-  activeTeamId: string | null;
-}) {
+function saveCache(data: CacheData) {
   try {
     localStorage.setItem(CACHE_KEY, JSON.stringify({ data, ts: Date.now() }));
   } catch {}
@@ -86,7 +84,7 @@ export function CompetitionProvider({ children }: { children: ReactNode }) {
   const [competitions, setCompetitions] = useState<CompetitionInfo[]>(cached?.competitions ?? []);
   const [activeCompetitionId, setActiveCompetitionId] = useState<string | null>(cached?.activeCompetitionId ?? null);
   const [activeTeamId, setActiveTeamId] = useState<string | null>(cached?.activeTeamId ?? null);
-  const [competitionTeamMap, setCompetitionTeamMap] = useState<Record<string, string[]>>({});
+  const [competitionTeamMap, setCompetitionTeamMap] = useState<Record<string, string[]>>(cached?.competitionTeamMap ?? {});
   const [cashBalance, setCashBalance] = useState<number | null>(null);
   const [loading, setLoading] = useState(!cached);
 
@@ -199,9 +197,9 @@ export function CompetitionProvider({ children }: { children: ReactNode }) {
   // Persist context to localStorage whenever it changes
   useEffect(() => {
     if (teams.length > 0 || competitions.length > 0) {
-      saveCache({ teams, competitions, activeCompetitionId, activeTeamId });
+      saveCache({ teams, competitions, competitionTeamMap, activeCompetitionId, activeTeamId });
     }
-  }, [teams, competitions, activeCompetitionId, activeTeamId]);
+  }, [teams, competitions, competitionTeamMap, activeCompetitionId, activeTeamId]);
 
   const activeTeam = teams.find((t) => t.id === activeTeamId) || null;
 
