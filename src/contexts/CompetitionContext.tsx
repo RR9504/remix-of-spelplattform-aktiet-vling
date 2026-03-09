@@ -19,6 +19,7 @@ interface CompetitionInfo {
 
 interface CompetitionContextType {
   teams: TeamInfo[];
+  teamsForActiveCompetition: TeamInfo[];
   competitions: CompetitionInfo[];
   allCompetitions: CompetitionInfo[];
   activeCompetition: CompetitionInfo | null;
@@ -32,6 +33,7 @@ interface CompetitionContextType {
 
 const CompetitionContext = createContext<CompetitionContextType>({
   teams: [],
+  teamsForActiveCompetition: [],
   competitions: [],
   allCompetitions: [],
   activeCompetition: null,
@@ -84,6 +86,7 @@ export function CompetitionProvider({ children }: { children: ReactNode }) {
   const [competitions, setCompetitions] = useState<CompetitionInfo[]>(cached?.competitions ?? []);
   const [activeCompetitionId, setActiveCompetitionId] = useState<string | null>(cached?.activeCompetitionId ?? null);
   const [activeTeamId, setActiveTeamId] = useState<string | null>(cached?.activeTeamId ?? null);
+  const [competitionTeamMap, setCompetitionTeamMap] = useState<Record<string, string[]>>({});
   const [cashBalance, setCashBalance] = useState<number | null>(null);
   const [loading, setLoading] = useState(!cached);
 
@@ -120,12 +123,20 @@ export function CompetitionProvider({ children }: { children: ReactNode }) {
           .in("id", teamIds),
         supabase
           .from("competition_teams")
-          .select("competition_id")
+          .select("competition_id, team_id")
           .in("team_id", teamIds),
       ]);
 
       const userTeams = (teamData as unknown as TeamInfo[]) || [];
       setTeams(userTeams);
+
+      // Build competition -> team_ids mapping
+      const ctMap: Record<string, string[]> = {};
+      for (const row of (ctRows || []) as any[]) {
+        if (!ctMap[row.competition_id]) ctMap[row.competition_id] = [];
+        ctMap[row.competition_id].push(row.team_id);
+      }
+      setCompetitionTeamMap(ctMap);
 
       const compIds = [...new Set((ctRows || []).map((r: any) => r.competition_id))];
 
@@ -201,6 +212,11 @@ export function CompetitionProvider({ children }: { children: ReactNode }) {
   // activeCompetition must be an active/upcoming competition — never an ended one
   const activeCompetition = activeCompetitions.find((c) => c.id === activeCompetitionId) || null;
 
+  // Teams that are actually in the active competition
+  const teamsForActiveCompetition = activeCompetitionId
+    ? teams.filter((t) => (competitionTeamMap[activeCompetitionId] || []).includes(t.id))
+    : [];
+
   // If cached activeCompetitionId points to an ended competition, auto-switch immediately
   useEffect(() => {
     if (!activeCompetitionId || competitions.length === 0) return;
@@ -214,10 +230,21 @@ export function CompetitionProvider({ children }: { children: ReactNode }) {
     }
   }, [activeCompetitionId, competitions]);
 
+  // Auto-select a team that's actually in the active competition
+  useEffect(() => {
+    if (!activeCompetitionId) return;
+    const validTeamIds = competitionTeamMap[activeCompetitionId] || [];
+    if (validTeamIds.length === 0) return;
+    if (activeTeamId && validTeamIds.includes(activeTeamId)) return;
+    // Current team is not in this competition — switch to first valid team
+    setActiveTeamId(validTeamIds[0]);
+  }, [activeCompetitionId, competitionTeamMap]);
+
   return (
     <CompetitionContext.Provider
       value={{
         teams,
+        teamsForActiveCompetition,
         competitions: activeCompetitions,
         allCompetitions: competitions,
         activeCompetition,

@@ -46,7 +46,7 @@ function setCachedPortfolio(compId: string, teamId: string, data: Portfolio) {
 }
 
 const Index = () => {
-  const { activeCompetition, activeTeam, competitions, teams, setActiveCompetitionId, setActiveTeamId, loading: ctxLoading } = useCompetition();
+  const { activeCompetition, activeTeam, competitions, teamsForActiveCompetition, setActiveCompetitionId, setActiveTeamId, loading: ctxLoading } = useCompetition();
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [showGuide, setShowGuide] = useState(() => !localStorage.getItem("stockarena_tutorial_seen"));
@@ -97,7 +97,7 @@ const Index = () => {
     return (
       <div className="min-h-screen bg-background">
         <Navbar />
-        <main className="container py-6 pb-20 md:pb-6 flex justify-center">
+        <main className="container py-6 pb-28 md:pb-6 flex justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </main>
       </div>
@@ -108,7 +108,7 @@ const Index = () => {
     return (
       <div className="min-h-screen bg-background">
         <Navbar />
-        <main className="container py-6 pb-20 md:pb-6 space-y-6">
+        <main className="container py-6 pb-28 md:pb-6 space-y-6">
           <div className="text-center py-16">
             <h1 className="text-2xl font-bold mb-2">Välkommen till StockArena!</h1>
             <p className="text-muted-foreground mb-6">
@@ -139,7 +139,7 @@ const Index = () => {
     <div className="min-h-screen bg-background">
       <Navbar />
       <WelcomeDialog open={showGuide} onClose={() => setShowGuide(false)} />
-      <main className="container py-6 pb-20 md:pb-6 space-y-6">
+      <main className="container py-6 pb-28 md:pb-6 space-y-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div>
@@ -163,7 +163,7 @@ const Index = () => {
                 </SelectContent>
               </Select>
             )}
-            {teams.length > 1 && (
+            {teamsForActiveCompetition.length > 1 && (
               <Select
                 value={activeTeam.id}
                 onValueChange={(v) => setActiveTeamId(v)}
@@ -172,7 +172,7 @@ const Index = () => {
                   <SelectValue placeholder="Byt lag" />
                 </SelectTrigger>
                 <SelectContent>
-                  {teams.map((t) => (
+                  {teamsForActiveCompetition.map((t) => (
                     <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
                   ))}
                 </SelectContent>
