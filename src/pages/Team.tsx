@@ -7,7 +7,7 @@ import { Navbar } from "@/components/Navbar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Copy, Check, Users, Crown, Link, Search, UserPlus, Loader2, X, LogOut } from "lucide-react";
+import { Copy, Check, Users, Crown, Link, Search, UserPlus, Loader2, X, LogOut, Trash2 } from "lucide-react";
 import { AchievementShowcase } from "@/components/AchievementShowcase";
 import { toast } from "sonner";
 
@@ -44,6 +44,8 @@ export default function TeamPage() {
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // Add member search state
   const [searchQuery, setSearchQuery] = useState("");
@@ -174,6 +176,25 @@ export default function TeamPage() {
     }
   };
 
+  const handleDeleteTeam = async () => {
+    if (!id || !user) return;
+    setDeleting(true);
+
+    const { error } = await supabase
+      .from("teams")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      toast.error("Kunde inte ta bort laget: " + error.message);
+      setDeleting(false);
+    } else {
+      toast.success("Laget har tagits bort.");
+      await refresh();
+      navigate("/");
+    }
+  };
+
   const copyCode = () => {
     if (team?.invite_code) {
       navigator.clipboard.writeText(team.invite_code);
@@ -200,7 +221,7 @@ export default function TeamPage() {
     return (
       <div className="min-h-screen bg-background">
         <Navbar />
-        <main className="container py-6 pb-20 md:pb-6">
+        <main className="container py-6 pb-28 md:pb-6">
           <p className="text-muted-foreground">Laddar...</p>
         </main>
       </div>
@@ -211,7 +232,7 @@ export default function TeamPage() {
     return (
       <div className="min-h-screen bg-background">
         <Navbar />
-        <main className="container py-6 pb-20 md:pb-6">
+        <main className="container py-6 pb-28 md:pb-6">
           <p className="text-muted-foreground">Lag hittades inte.</p>
         </main>
       </div>
@@ -221,7 +242,7 @@ export default function TeamPage() {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <main className="container py-6 pb-20 md:pb-6 space-y-6">
+      <main className="container py-6 pb-28 md:pb-6 space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -275,7 +296,7 @@ export default function TeamPage() {
           </CardHeader>
             <CardContent>
               <div className="flex items-center gap-3">
-                <code className="flex-1 rounded-lg bg-muted px-3 py-2 sm:px-4 sm:py-3 font-mono text-sm sm:text-lg tracking-wider sm:tracking-widest">
+                <code className="flex-1 min-w-0 rounded-lg bg-muted px-3 py-2 sm:px-4 sm:py-3 font-mono text-sm sm:text-lg tracking-wider sm:tracking-widest truncate">
                   {team.invite_code}
                 </code>
                 <Button variant="outline" size="icon" onClick={copyCode}>
@@ -482,6 +503,45 @@ export default function TeamPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Delete team - captain only */}
+        {isCaptain && (
+          <div className="pt-4 border-t">
+            {confirmDelete ? (
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-destructive">
+                  Är du säker? Laget och all data tas bort permanent.
+                </span>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleDeleteTeam}
+                  disabled={deleting}
+                >
+                  {deleting ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Trash2 className="h-4 w-4 mr-1.5" />}
+                  {deleting ? "Tar bort..." : "Ja, ta bort"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setConfirmDelete(false)}
+                >
+                  Avbryt
+                </Button>
+              </div>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={() => setConfirmDelete(true)}
+              >
+                <Trash2 className="h-4 w-4 mr-1.5" />
+                Ta bort lag
+              </Button>
+            )}
+          </div>
+        )}
       </main>
     </div>
   );
