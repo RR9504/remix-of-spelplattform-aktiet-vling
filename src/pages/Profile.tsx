@@ -4,21 +4,27 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompetition } from "@/contexts/CompetitionContext";
 import { Navbar } from "@/components/Navbar";
+import { CompetitionResults } from "@/components/CompetitionResults";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { User, Users, Trophy, Pencil, Check, LogOut, Loader2 } from "lucide-react";
+import { User, Users, Trophy, Pencil, Check, LogOut, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function ProfilePage() {
   const { user, signOut } = useAuth();
-  const { teams, allCompetitions: competitions, activeCompetition, activeTeam, setActiveCompetitionId, setActiveTeamId } = useCompetition();
+  const { teams, allCompetitions: competitions, activeCompetition, activeTeam, setActiveCompetitionId, setActiveTeamId, refresh } = useCompetition();
+  const navigate = useNavigate();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState("");
   const [saving, setSaving] = useState(false);
+  const [resultsComp, setResultsComp] = useState<typeof competitions[number] | null>(null);
+  const [confirmDeleteTeam, setConfirmDeleteTeam] = useState<string | null>(null);
+  const [deletingTeam, setDeletingTeam] = useState(false);
 
   // Map competition → team for this user
   const [compTeamMap, setCompTeamMap] = useState<Record<string, { team_id: string; team_name: string }>>({});
@@ -32,7 +38,8 @@ export default function ProfilePage() {
       .select("full_name, email")
       .eq("id", user.id)
       .single()
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error) console.error("Profile fetch error:", error);
         if (data) {
           setFullName(data.full_name || "");
           setEmail(data.email || user.email || "");
@@ -46,7 +53,8 @@ export default function ProfilePage() {
         .from("competition_teams")
         .select("competition_id, team_id")
         .in("team_id", teamIds)
-        .then(({ data }) => {
+        .then(({ data, error }) => {
+          if (error) console.error("Competition teams fetch error:", error);
           const map: Record<string, { team_id: string; team_name: string }> = {};
           for (const row of data || []) {
             const team = teams.find((t) => t.id === row.team_id);
@@ -77,22 +85,29 @@ export default function ProfilePage() {
     setSaving(false);
   };
 
-  const handleSelectCompetition = (compId: string) => {
-    setActiveCompetitionId(compId);
-    const mapping = compTeamMap[compId];
+  const handleSelectCompetition = (comp: typeof competitions[number]) => {
+    const now = new Date();
+    const end = new Date(comp.end_date);
+    const isEnded = now > end;
+
+    if (isEnded) {
+      setResultsComp(comp);
+      return;
+    }
+
+    setActiveCompetitionId(comp.id);
+    const mapping = compTeamMap[comp.id];
     if (mapping) {
       setActiveTeamId(mapping.team_id);
     }
     navigate("/");
   };
-
-  const navigate = useNavigate();
   const displayName = fullName || email.split("@")[0] || "Användare";
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <main className="container py-6 pb-20 md:pb-6 space-y-6 max-w-2xl">
+      <main className="container py-6 pb-28 md:pb-6 space-y-6 max-w-2xl">
         {/* User info */}
         <Card>
           <CardHeader>
@@ -172,7 +187,7 @@ export default function ProfilePage() {
                   return (
                     <button
                       key={comp.id}
-                      onClick={() => handleSelectCompetition(comp.id)}
+                      onClick={() => handleSelectCompetition(comp)}
                       className={`w-full text-left rounded-lg border p-4 transition-colors ${
                         isActive
                           ? "border-primary bg-primary/5"
@@ -182,7 +197,7 @@ export default function ProfilePage() {
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="font-semibold text-sm">{comp.name}</p>
-                          <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 break-words">
+                          <p className="text-xs text-muted-foreground mt-0.5 break-words">
                             {mapping ? `Lag: ${mapping.team_name}` : ""}
                             {mapping ? " · " : ""}
                             {start.toLocaleDateString("sv-SE")} – {end.toLocaleDateString("sv-SE")}
@@ -190,16 +205,16 @@ export default function ProfilePage() {
                         </div>
                         <div className="flex items-center gap-2">
                           {isOngoing && (
-                            <Badge variant="outline" className="text-[10px] border-gain text-gain">Pågår</Badge>
+                            <Badge variant="outline" className="text-xs border-gain text-gain">Pågår</Badge>
                           )}
                           {isUpcoming && (
-                            <Badge variant="outline" className="text-[10px] border-yellow-500 text-yellow-500">Kommande</Badge>
+                            <Badge variant="outline" className="text-xs border-yellow-500 text-yellow-500">Kommande</Badge>
                           )}
                           {!isOngoing && !isUpcoming && (
-                            <Badge variant="outline" className="text-[10px]">Avslutad</Badge>
+                            <Badge variant="outline" className="text-xs">Avslutad</Badge>
                           )}
                           {isActive && (
-                            <Badge className="text-[10px]">Aktiv</Badge>
+                            <Badge className="text-xs">Aktiv</Badge>
                           )}
                         </div>
                       </div>
@@ -230,16 +245,66 @@ export default function ProfilePage() {
             ) : (
               <div className="space-y-2">
                 {teams.map((team) => (
-                  <Link
+                  <div
                     key={team.id}
-                    to={`/team/${team.id}`}
-                    className="flex items-center justify-between rounded-lg border p-3 hover:bg-muted/50 transition-colors"
+                    className="flex items-center justify-between rounded-lg border p-3"
                   >
-                    <span className="font-medium text-sm">{team.name}</span>
-                    {team.captain_id === user?.id && (
-                      <Badge variant="outline" className="text-[10px]">Kapten</Badge>
-                    )}
-                  </Link>
+                    <Link
+                      to={`/team/${team.id}`}
+                      className="flex-1 min-w-0 hover:text-primary transition-colors"
+                    >
+                      <span className="font-medium text-sm">{team.name}</span>
+                    </Link>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {team.captain_id === user?.id && (
+                        <Badge variant="outline" className="text-xs">Kapten</Badge>
+                      )}
+                      {team.captain_id === user?.id && (
+                        confirmDeleteTeam === team.id ? (
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              className="h-7 text-xs"
+                              disabled={deletingTeam}
+                              onClick={async () => {
+                                setDeletingTeam(true);
+                                const { error } = await supabase.from("teams").delete().eq("id", team.id);
+                                if (error) {
+                                  toast.error("Kunde inte ta bort: " + error.message);
+                                } else {
+                                  toast.success("Laget borttaget.");
+                                  await refresh();
+                                }
+                                setDeletingTeam(false);
+                                setConfirmDeleteTeam(null);
+                              }}
+                            >
+                              {deletingTeam ? <Loader2 className="h-3 w-3 animate-spin" /> : "Ta bort"}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-xs"
+                              onClick={() => setConfirmDeleteTeam(null)}
+                            >
+                              Avbryt
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                            onClick={() => setConfirmDeleteTeam(team.id)}
+                            title="Ta bort lag"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )
+                      )}
+                    </div>
+                  </div>
                 ))}
               </div>
             )}
@@ -252,6 +317,27 @@ export default function ProfilePage() {
           Logga ut
         </Button>
       </main>
+
+      {/* Results dialog for finished competitions */}
+      <Dialog open={!!resultsComp} onOpenChange={(open) => { if (!open) setResultsComp(null); }}>
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trophy className="h-5 w-5 text-yellow-500" />
+              Tävlingsresultat
+            </DialogTitle>
+          </DialogHeader>
+          {resultsComp && (
+            <CompetitionResults
+              competitionId={resultsComp.id}
+              competitionName={resultsComp.name}
+              startDate={resultsComp.start_date}
+              endDate={resultsComp.end_date}
+              initialBalance={resultsComp.initial_balance}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
