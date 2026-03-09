@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Navigate } from "react-router-dom";
 import { Loader2, HelpCircle } from "lucide-react";
 import { Navbar } from "@/components/Navbar";
 import { PortfolioChart } from "@/components/PortfolioChart";
@@ -105,27 +105,7 @@ const Index = () => {
   }
 
   if (!activeCompetition || !activeTeam) {
-    return (
-      <div className="min-h-screen bg-background">
-        <Navbar />
-        <main className="container py-6 pb-28 md:pb-6 space-y-6">
-          <div className="text-center py-16">
-            <h1 className="text-2xl font-bold mb-2">Välkommen till StockArena!</h1>
-            <p className="text-muted-foreground mb-6">
-              Gå med i en tävling eller skapa en ny för att börja handla.
-            </p>
-            <div className="flex gap-4 justify-center">
-              <Link to="/competitions">
-                <Button>Hitta tävlingar</Button>
-              </Link>
-              <Link to="/onboarding">
-                <Button variant="outline">Kom igång</Button>
-              </Link>
-            </div>
-          </div>
-        </main>
-      </div>
-    );
+    return <Navigate to="/onboarding" replace />;
   }
 
   const cash = portfolio?.cash ?? activeCompetition.initial_balance;
