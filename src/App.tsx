@@ -4,7 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import { CompetitionProvider } from "@/contexts/CompetitionContext";
+import { CompetitionProvider, useCompetition } from "@/contexts/CompetitionContext";
 import { NotificationProvider } from "@/contexts/NotificationContext";
 import Index from "./pages/Index";
 import Trade from "./pages/Trade";
@@ -22,6 +22,7 @@ import Watchlist from "./pages/Watchlist";
 import Analytics from "./pages/Analytics";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
+import { FeedbackButton } from "@/components/FeedbackButton";
 
 const queryClient = new QueryClient();
 
@@ -30,6 +31,12 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   if (loading) return <div className="min-h-screen bg-background flex items-center justify-center"><p className="text-muted-foreground">Laddar...</p></div>;
   if (!user) return <Navigate to="/auth" replace />;
   return <>{children}</>;
+}
+
+function TeamRedirect() {
+  const { activeTeam } = useCompetition();
+  if (activeTeam) return <Navigate to={`/team/${activeTeam.id}`} replace />;
+  return <Navigate to="/" replace />;
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
@@ -56,9 +63,11 @@ const App = () => (
         <AuthProvider>
           <CompetitionProvider>
             <NotificationProvider>
+              <FeedbackButton />
               <Routes>
                 <Route path="/auth" element={<PublicRoute><Auth /></PublicRoute>} />
                 <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
+                <Route path="/team" element={<ProtectedRoute><TeamRedirect /></ProtectedRoute>} />
                 <Route path="/team/:id" element={<ProtectedRoute><Team /></ProtectedRoute>} />
                 <Route path="/team/:id/profile" element={<ProtectedRoute><TeamProfile /></ProtectedRoute>} />
                 <Route path="/competitions" element={<ProtectedRoute><Competitions /></ProtectedRoute>} />
