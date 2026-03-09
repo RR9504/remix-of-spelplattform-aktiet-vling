@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { TrendingUp, Trophy, Users, UserPlus, ArrowLeft, ArrowRight, Copy, Check, Ticket } from "lucide-react";
+import { Navbar } from "@/components/Navbar";
 import { toast } from "sonner";
 
 type Path =
@@ -231,7 +232,9 @@ export default function Onboarding() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background">
+      <Navbar />
+      <div className="flex items-center justify-center p-4 pt-6">
       <div className="w-full max-w-lg space-y-6">
         <div className="flex flex-col items-center gap-2">
           <div className="flex items-center gap-2">
@@ -566,6 +569,7 @@ export default function Onboarding() {
             </CardContent>
           </Card>
         )}
+      </div>
       </div>
     </div>
   );
