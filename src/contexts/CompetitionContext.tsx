@@ -215,11 +215,19 @@ export function CompetitionProvider({ children }: { children: ReactNode }) {
     ? teams.filter((t) => (competitionTeamMap[activeCompetitionId] || []).includes(t.id))
     : [];
 
-  // If cached activeCompetitionId points to an ended competition, auto-switch immediately
+  // If activeCompetitionId is stale (ended, deleted, or not in user's competitions), auto-switch
   useEffect(() => {
-    if (!activeCompetitionId || competitions.length === 0) return;
-    const selected = competitions.find((c) => c.id === activeCompetitionId);
-    if (selected && selected.end_date < today) {
+    if (competitions.length === 0) return;
+    if (!activeCompetitionId) {
+      // No competition selected — pick first active one
+      if (activeCompetitions.length > 0) {
+        setActiveCompetitionId(activeCompetitions[0].id);
+      }
+      return;
+    }
+    // Check if selected competition is still valid and active
+    const isActive = activeCompetitions.some((c) => c.id === activeCompetitionId);
+    if (!isActive) {
       if (activeCompetitions.length > 0) {
         setActiveCompetitionId(activeCompetitions[0].id);
       } else {
@@ -232,11 +240,17 @@ export function CompetitionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!activeCompetitionId) return;
     const validTeamIds = competitionTeamMap[activeCompetitionId] || [];
-    if (validTeamIds.length === 0) return;
+    if (validTeamIds.length === 0) {
+      // No teams in this competition — check if activeTeamId is at least a valid team
+      if (activeTeamId && !teams.some((t) => t.id === activeTeamId) && teams.length > 0) {
+        setActiveTeamId(teams[0].id);
+      }
+      return;
+    }
     if (activeTeamId && validTeamIds.includes(activeTeamId)) return;
     // Current team is not in this competition — switch to first valid team
     setActiveTeamId(validTeamIds[0]);
-  }, [activeCompetitionId, competitionTeamMap]);
+  }, [activeCompetitionId, competitionTeamMap, teams]);
 
   return (
     <CompetitionContext.Provider
