@@ -243,67 +243,67 @@ export default function ProfilePage() {
                 </Link>
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {teams.map((team) => (
                   <div
                     key={team.id}
-                    className="flex items-center justify-between rounded-lg border p-3"
+                    className="rounded-lg border p-3 space-y-2"
                   >
-                    <Link
-                      to={`/team/${team.id}`}
-                      className="flex-1 min-w-0 hover:text-primary transition-colors"
-                    >
-                      <span className="font-medium text-sm">{team.name}</span>
-                    </Link>
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center justify-between">
+                      <Link
+                        to={`/team/${team.id}`}
+                        className="flex-1 min-w-0 hover:text-primary transition-colors"
+                      >
+                        <span className="font-medium text-sm">{team.name}</span>
+                      </Link>
                       {team.captain_id === user?.id && (
                         <Badge variant="outline" className="text-xs">Kapten</Badge>
                       )}
-                      {team.captain_id === user?.id && (
-                        confirmDeleteTeam === team.id ? (
-                          <div className="flex items-center gap-1">
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              className="h-7 text-xs"
-                              disabled={deletingTeam}
-                              onClick={async () => {
-                                setDeletingTeam(true);
-                                const { error } = await supabase.from("teams").delete().eq("id", team.id);
-                                if (error) {
-                                  toast.error("Kunde inte ta bort: " + error.message);
-                                } else {
-                                  toast.success("Laget borttaget.");
-                                  await refresh();
-                                }
-                                setDeletingTeam(false);
-                                setConfirmDeleteTeam(null);
-                              }}
-                            >
-                              {deletingTeam ? <Loader2 className="h-3 w-3 animate-spin" /> : "Ta bort"}
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-7 text-xs"
-                              onClick={() => setConfirmDeleteTeam(null)}
-                            >
-                              Avbryt
-                            </Button>
-                          </div>
-                        ) : (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                            onClick={() => setConfirmDeleteTeam(team.id)}
-                            title="Ta bort lag"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )
-                      )}
                     </div>
+                    {team.captain_id === user?.id && (
+                      confirmDeleteTeam === team.id ? (
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            className="text-xs"
+                            disabled={deletingTeam}
+                            onClick={async () => {
+                              setDeletingTeam(true);
+                              const { error } = await supabase.from("teams").delete().eq("id", team.id);
+                              if (error) {
+                                toast.error("Kunde inte ta bort: " + error.message);
+                              } else {
+                                toast.success("Laget borttaget.");
+                                await refresh();
+                              }
+                              setDeletingTeam(false);
+                              setConfirmDeleteTeam(null);
+                            }}
+                          >
+                            {deletingTeam ? <Loader2 className="h-3 w-3 animate-spin" /> : "Ja, ta bort laget"}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-xs"
+                            onClick={() => setConfirmDeleteTeam(null)}
+                          >
+                            Avbryt
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs text-destructive border-destructive/50 hover:bg-destructive/10"
+                          onClick={() => setConfirmDeleteTeam(team.id)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                          Ta bort lag
+                        </Button>
+                      )
+                    )}
                   </div>
                 ))}
               </div>
