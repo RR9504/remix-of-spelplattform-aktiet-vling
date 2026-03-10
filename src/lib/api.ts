@@ -25,10 +25,11 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 async function getAuthHeaders(): Promise<Record<string, string>> {
   const { data: { session } } = await supabase.auth.getSession();
+  const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
   return {
     "Content-Type": "application/json",
-    Authorization: `Bearer ${session?.access_token ?? ""}`,
-    apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+    Authorization: `Bearer ${session?.access_token ?? anonKey}`,
+    apikey: anonKey,
   };
 }
 
@@ -153,7 +154,7 @@ export async function getPortfolio(
     const enrichedHoldings: any[] = [];
     for (const h of holdings) {
       const cached = priceMap[h.ticker];
-      const currentPriceSek = cached ? cached.price_sek : Number(h.avg_cost_per_share_sek);
+      const currentPriceSek = cached ? cached.price_sek : (Number(h.avg_cost_per_share_sek) || 0);
       const currentPrice = cached ? cached.price : 0;
       const totalShares = Number(h.total_shares);
       const avgCost = Number(h.avg_cost_per_share_sek);
@@ -182,7 +183,7 @@ export async function getPortfolio(
     const enrichedShorts: any[] = [];
     for (const sp of shortPositions) {
       const cached = priceMap[sp.ticker];
-      const currentPriceSek = cached ? cached.price_sek : Number(sp.entry_price_sek);
+      const currentPriceSek = cached ? cached.price_sek : (Number(sp.entry_price_sek) || 0);
       const shares = Number(sp.shares);
       const entryPriceSek = Number(sp.entry_price_sek);
       const currentValue = shares * currentPriceSek;
