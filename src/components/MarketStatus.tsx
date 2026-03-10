@@ -52,43 +52,67 @@ function StatusBadge({ label, open, hours, flag, onClick }: { label: string; ope
 
 function IndexDialog({ market, onClose }: { market: "SE" | "US"; onClose: () => void }) {
   const navigate = useNavigate();
-  const baseStocks = market === "SE" ? NASDAQ_STOCKHOLM : US_POPULAR;
   const title = market === "SE" ? "Nasdaq Stockholm" : "Populära US-aktier";
-  const subtitle = market === "SE" ? `Large Cap + Mid Cap · ${baseStocks.length} aktier` : `${baseStocks.length} aktier`;
+  const fallbackStocks = market === "SE" ? NASDAQ_STOCKHOLM : US_POPULAR;
 
+  const [stocks, setStocks] = useState<IndexStock[]>([]);
   const [prices, setPrices] = useState<Record<string, PriceInfo>>({});
-  const [extraStocks, setExtraStocks] = useState<IndexStock[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
   useEffect(() => {
     const load = async () => {
       if (market === "SE") {
-        // Fetch ALL .ST tickers from cache — picks up stocks users have discovered
+        // 1. Try dynamic table first
+        const { data: dbStocks } = await (supabase
+          .from("exchange_stocks" as any)
+          .select("ticker, name")
+          .eq("exchange", "XSTO")
+          .order("name") as any);
+
+        // 2. Also fetch all .ST tickers from price cache (extra discovered stocks)
         const { data: cacheRows } = await supabase
           .from("stock_price_cache")
           .select("ticker, price_sek, change_percent, stock_name")
           .like("ticker", "%.ST");
 
         const priceMap: Record<string, PriceInfo> = {};
-        const knownTickers = new Set(baseStocks.map((s) => s.ticker));
-        const extras: IndexStock[] = [];
+        const cacheStocks: IndexStock[] = [];
 
         for (const row of cacheRows || []) {
           priceMap[row.ticker] = {
             price_sek: Number(row.price_sek),
             change_percent: row.change_percent != null ? Number(row.change_percent) : null,
           };
-          if (!knownTickers.has(row.ticker) && row.stock_name) {
-            extras.push({ ticker: row.ticker, name: row.stock_name });
+          if (row.stock_name) {
+            cacheStocks.push({ ticker: row.ticker, name: row.stock_name });
           }
         }
 
+        // Use DB stocks if available (>10 entries), otherwise fallback
+        const baseList: IndexStock[] =
+          dbStocks && dbStocks.length > 10
+            ? (dbStocks as IndexStock[])
+            : fallbackStocks;
+
+        // Merge base + cache-discovered, deduplicate
+        const seen = new Set<string>();
+        const merged: IndexStock[] = [];
+        for (const s of [...baseList, ...cacheStocks]) {
+          if (!seen.has(s.ticker)) {
+            seen.add(s.ticker);
+            merged.push(s);
+          }
+        }
+        merged.sort((a, b) => a.name.localeCompare(b.name, "sv"));
+
+        setStocks(merged);
         setPrices(priceMap);
-        setExtraStocks(extras.sort((a, b) => a.name.localeCompare(b.name, "sv")));
       } else {
-        // US stocks — fetch prices for the hardcoded list
-        const tickers = baseStocks.map((s) => s.ticker);
+        // US — use fallback list + prices from cache
+        setStocks(fallbackStocks);
+
+        const tickers = fallbackStocks.map((s) => s.ticker);
         const { data } = await supabase
           .from("stock_price_cache")
           .select("ticker, price_sek, change_percent")
@@ -108,24 +132,13 @@ function IndexDialog({ market, onClose }: { market: "SE" | "US"; onClose: () => 
     load();
   }, [market]);
 
-  const allStocks = useMemo(() => {
-    const combined = [...baseStocks, ...extraStocks];
-    // Deduplicate by ticker
-    const seen = new Set<string>();
-    return combined.filter((s) => {
-      if (seen.has(s.ticker)) return false;
-      seen.add(s.ticker);
-      return true;
-    });
-  }, [baseStocks, extraStocks]);
-
   const filtered = useMemo(() => {
-    if (!search.trim()) return allStocks;
+    if (!search.trim()) return stocks;
     const q = search.toLowerCase();
-    return allStocks.filter(
+    return stocks.filter(
       (s) => s.ticker.toLowerCase().includes(q) || s.name.toLowerCase().includes(q)
     );
-  }, [allStocks, search]);
+  }, [stocks, search]);
 
   const handleClick = (ticker: string) => {
     onClose();
@@ -137,7 +150,7 @@ function IndexDialog({ market, onClose }: { market: "SE" | "US"; onClose: () => 
       <DialogContent className="sm:max-w-md max-h-[80vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <p className="text-xs text-muted-foreground">{subtitle}</p>
+          <p className="text-xs text-muted-foreground">{stocks.length} aktier</p>
         </DialogHeader>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
