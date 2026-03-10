@@ -85,15 +85,17 @@ export function formatPrice(value: number, currency: string): string {
   return new Intl.NumberFormat('sv-SE', { style: 'currency', currency, minimumFractionDigits: 2 }).format(value);
 }
 
-export function isMarketOpen(market: 'SE' | 'US'): boolean {
+export function isMarketOpen(market: 'SE' | 'US' | 'CRYPTO'): boolean {
+  if (market === 'CRYPTO') return true;
+
   const now = new Date();
   const hours = now.getHours();
   const minutes = now.getMinutes();
   const time = hours * 60 + minutes;
   const day = now.getDay();
-  
+
   if (day === 0 || day === 6) return false;
-  
+
   if (market === 'SE') {
     return time >= 9 * 60 && time <= 17 * 60 + 30;  // 09:00–17:30 CET
   } else {

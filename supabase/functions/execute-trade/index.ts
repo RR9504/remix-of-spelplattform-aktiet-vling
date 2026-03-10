@@ -25,12 +25,9 @@ serve(async (req) => {
     }
 
     const token = authHeader.replace("Bearer ", "");
+    const supabase = createClient(supabaseUrl, serviceKey);
 
-    // Create a user-scoped client to verify the JWT
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const { data: { user: authUser }, error: authError } = await createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: `Bearer ${token}` } },
-    }).auth.getUser();
+    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);
 
     if (authError || !authUser) {
       return new Response(JSON.stringify({ success: false, error: "Ogiltig token" }), {
@@ -50,7 +47,7 @@ serve(async (req) => {
     }
 
     if (shares > 100000) {
-      return new Response(JSON.stringify({ success: false, error: "Max 100 000 aktier per affär" }), {
+      return new Response(JSON.stringify({ success: false, error: "Max 100 000 enheter per affär" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -63,8 +60,6 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    const supabase = createClient(supabaseUrl, serviceKey);
 
     // Validate team membership + get team captain info and trade limit
     const { data: membership } = await supabase
@@ -149,25 +144,32 @@ serve(async (req) => {
       });
     }
 
-    // Check if relevant market is open (CET/Stockholm timezone)
-    const now = new Date();
-    const cet = new Date(now.toLocaleString("en-US", { timeZone: "Europe/Stockholm" }));
-    const day = cet.getDay();
-    const time = cet.getHours() * 60 + cet.getMinutes();
+    // Determine asset type from ticker
+    const isCrypto = ticker.includes("-USD") || ticker.includes("-EUR") || ticker.includes("-GBP");
+    const isCommodity = ticker.endsWith("=F");
     const isSE = ticker.endsWith(".ST");
-    const isWeekday = day >= 1 && day <= 5;
-    const seOpen = isWeekday && time >= 9 * 60 && time <= 17 * 60 + 30;
-    const usOpen = isWeekday && time >= 15 * 60 + 30 && time <= 22 * 60;
-    const marketOpen = isSE ? seOpen : usOpen;
 
-    if (!marketOpen) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: "Börsen är stängd. Använd limitorder för att handla utanför öppettider.",
-      }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    // Check if relevant market is open (CET/Stockholm timezone)
+    // Crypto trades 24/7, commodities and stocks have market hours
+    if (!isCrypto) {
+      const now = new Date();
+      const cet = new Date(now.toLocaleString("en-US", { timeZone: "Europe/Stockholm" }));
+      const day = cet.getDay();
+      const time = cet.getHours() * 60 + cet.getMinutes();
+      const isWeekday = day >= 1 && day <= 5;
+      const seOpen = isWeekday && time >= 9 * 60 && time <= 17 * 60 + 30;
+      const usOpen = isWeekday && time >= 15 * 60 + 30 && time <= 22 * 60;
+      const marketOpen = isCommodity ? usOpen : (isSE ? seOpen : usOpen);
+
+      if (!marketOpen) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: "Marknaden är stängd. Använd limitorder för att handla utanför öppettider.",
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     // Fetch current stock price
@@ -181,7 +183,7 @@ serve(async (req) => {
     const priceData = await priceResp.json();
 
     if (!priceData.price) {
-      return new Response(JSON.stringify({ success: false, error: "Kunde inte hämta aktiekurs för " + ticker }), {
+      return new Response(JSON.stringify({ success: false, error: "Kunde inte hämta pris för " + ticker }), {
         status: 502,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

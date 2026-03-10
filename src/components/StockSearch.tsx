@@ -53,7 +53,7 @@ export function StockSearch({ initialQuery }: { initialQuery?: string } = {}) {
       <div className="relative">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
-          placeholder="Sök aktie (t.ex. VOLV-B.ST, AAPL, Tesla)..."
+          placeholder="Sök aktie, krypto, råvara (t.ex. AAPL, BTC-USD, GC=F)..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           className="pl-10 bg-card"
@@ -74,7 +74,11 @@ export function StockSearch({ initialQuery }: { initialQuery?: string } = {}) {
             className="flex items-center justify-between rounded-lg border bg-card p-4 text-left transition-colors hover:bg-muted disabled:opacity-50"
           >
             <div className="flex items-center gap-3">
-              <span className="text-lg">{stock.exchange?.includes("Stockholm") || stock.ticker.endsWith(".ST") ? "🇸🇪" : "🇺🇸"}</span>
+              <span className="text-lg">{
+                stock.ticker.includes("-USD") || stock.ticker.includes("-EUR") || stock.ticker.includes("-GBP") ? "🪙" :
+                stock.ticker.endsWith("=F") ? "📦" :
+                stock.exchange?.includes("Stockholm") || stock.ticker.endsWith(".ST") ? "🇸🇪" : "🇺🇸"
+              }</span>
               <div>
                 <p className="font-mono font-semibold text-sm">{stock.ticker}</p>
                 <p className="text-xs text-muted-foreground">{stock.name}</p>

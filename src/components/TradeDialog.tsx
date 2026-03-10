@@ -30,8 +30,17 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
   const rules = (activeCompetition as any)?.rules || {};
   const shortsAllowed = rules.allow_shorts !== false;
   const mktFilter = rules.market_filter || "all";
-  const isSETicker = stock.ticker.endsWith(".ST");
-  const marketBlocked = (mktFilter === "SE" && !isSETicker) || (mktFilter === "US" && isSETicker);
+
+  // Determine asset type and market
+  const isCrypto = stock.ticker.includes("-USD") || stock.ticker.includes("-EUR") || stock.ticker.includes("-GBP");
+  const isCommodity = stock.ticker.endsWith("=F");
+  const isSE = stock.exchange?.includes("Stockholm") || stock.ticker.endsWith(".ST");
+  const isSETicker = isSE;
+  const assetMarket: "SE" | "US" | "CRYPTO" = isCrypto ? "CRYPTO" : (isSE ? "SE" : "US");
+  const marketOpen = isMarketOpen(assetMarket);
+  const assetLabel = isCrypto ? "enheter" : isCommodity ? "kontrakt" : "aktier";
+  const marketBlocked = (mktFilter === "SE" && !isSETicker) || (mktFilter === "US" && (isSETicker || isCrypto || isCommodity));
+
   const [shares, setShares] = useState("");
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [loading, setLoading] = useState(false);
@@ -51,10 +60,6 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
   const [currentShares, setCurrentShares] = useState<number>(0);
   const [avgCost, setAvgCost] = useState<number>(0);
   const [shortShares, setShortShares] = useState<number>(0);
-
-  // Determine which market this stock belongs to and if it's open
-  const isSE = stock.exchange?.includes("Stockholm") || stock.ticker.endsWith(".ST");
-  const marketOpen = isMarketOpen(isSE ? "SE" : "US");
 
   useEffect(() => {
     if (!priceData) {
@@ -111,7 +116,7 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
       return;
     }
     if (qty <= 0) {
-      toast.error("Ange antal aktier");
+      toast.error("Ange antal");
       return;
     }
 
@@ -142,7 +147,7 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
       return;
     }
     if (qty <= 0) {
-      toast.error("Ange antal aktier");
+      toast.error("Ange antal");
       return;
     }
 
@@ -175,7 +180,7 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
     const lQty = parseInt(limitShares) || 0;
     const lPrice = parseFloat(targetPrice) || 0;
     if (lQty <= 0 || lPrice <= 0) {
-      toast.error("Ange riktkurs och antal aktier");
+      toast.error("Ange riktkurs och antal");
       return;
     }
 
@@ -238,10 +243,10 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
     <Dialog open onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <span>{stock.exchange?.includes("Stockholm") || stock.ticker.endsWith(".ST") ? "🇸🇪" : "🇺🇸"}</span>
-            <span className="font-mono">{stock.ticker}</span>
-            <span className="text-muted-foreground font-normal text-sm">
+          <DialogTitle className="flex items-center gap-2 min-w-0">
+            <span>{isCrypto ? "🪙" : isCommodity ? "📦" : isSE ? "🇸🇪" : "🇺🇸"}</span>
+            <span className="font-mono shrink-0">{stock.ticker}</span>
+            <span className="text-muted-foreground font-normal text-sm truncate">
               – {priceData?.stock_name || stock.name}
             </span>
           </DialogTitle>
@@ -275,7 +280,7 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
               <TabsContent value="direct" className="space-y-4 mt-4">
                 {!marketOpen && (
                   <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-3 text-sm">
-                    <p className="font-medium text-yellow-600">Börsen är stängd</p>
+                    <p className="font-medium text-yellow-600">Marknaden är stängd</p>
                     <p className="text-xs text-muted-foreground mt-1">
                       Direkthandel är inte tillgängligt just nu. Använd <strong>Limitorder</strong> för att lägga en order som exekveras vid nästa börsöppning.
                     </p>
@@ -305,7 +310,7 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
                     <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Ditt innehav</p>
                     {currentShares > 0 && (
                       <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Aktier</span>
+                        <span className="text-muted-foreground">{isCrypto ? "Enheter" : isCommodity ? "Kontrakt" : "Aktier"}</span>
                         <span className="font-mono font-semibold">{currentShares.toLocaleString("sv-SE")} st</span>
                       </div>
                     )}
@@ -353,7 +358,7 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
                 )}
 
                 <div>
-                  <label className="text-sm text-muted-foreground">Antal aktier</label>
+                  <label className="text-sm text-muted-foreground">Antal</label>
                   <Input
                     type="number"
                     min={1}
@@ -394,7 +399,7 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
                   ) : null}
                   {!marketOpen
-                    ? "Börsen stängd — använd limitorder"
+                    ? "Marknaden stängd — använd limitorder"
                     : loading
                     ? "Genomför..."
                     : `${side === "buy" ? "Köp" : "Sälj"} ${stock.ticker}`}
@@ -440,7 +445,7 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
                 </div>
 
                 <div>
-                  <label className="text-sm text-muted-foreground">Antal aktier</label>
+                  <label className="text-sm text-muted-foreground">Antal</label>
                   <Input
                     type="number"
                     min={1}
@@ -495,7 +500,7 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
               <TabsContent value="short" className="space-y-4 mt-4">
                 {!marketOpen && (
                   <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-3 text-sm">
-                    <p className="font-medium text-yellow-600">Börsen är stängd</p>
+                    <p className="font-medium text-yellow-600">Marknaden är stängd</p>
                     <p className="text-xs text-muted-foreground mt-1">
                       Blankning kräver att börsen är öppen. Använd <strong>Limitorder</strong> istället.
                     </p>
@@ -542,7 +547,7 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
                 )}
 
                 <div>
-                  <label className="text-sm text-muted-foreground">Antal aktier</label>
+                  <label className="text-sm text-muted-foreground">Antal</label>
                   <Input
                     type="number"
                     min={1}
@@ -579,7 +584,7 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
                   ) : null}
                   {!marketOpen
-                    ? "Börsen stängd — använd limitorder"
+                    ? "Marknaden stängd — använd limitorder"
                     : loading
                     ? "Genomför..."
                     : `${shortSide === "short" ? "Blanka" : "Täck"} ${stock.ticker}`}
