@@ -70,8 +70,15 @@ export async function executeTrade(trade: TradeRequest): Promise<TradeResult> {
       headers,
       body: JSON.stringify(trade),
     });
-    return await res.json();
-  } catch {
+    const text = await res.text();
+    try {
+      return JSON.parse(text);
+    } catch {
+      console.error("execute-trade non-JSON response:", res.status, text);
+      return { success: false, error: `Serverfel (${res.status})` };
+    }
+  } catch (e) {
+    console.error("execute-trade network error:", e);
     return { success: false, error: "Nätverksfel" };
   }
 }
