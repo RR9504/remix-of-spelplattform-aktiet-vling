@@ -17,8 +17,8 @@ export default function ProfilePage() {
   const { user, signOut } = useAuth();
   const { teams, allCompetitions: competitions, activeCompetition, activeTeam, setActiveCompetitionId, setActiveTeamId, refresh } = useCompetition();
   const navigate = useNavigate();
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
+  const [fullName, setFullName] = useState(user?.user_metadata?.full_name || "");
+  const [email, setEmail] = useState(user?.email || "");
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState("");
   const [saving, setSaving] = useState(false);
@@ -41,8 +41,8 @@ export default function ProfilePage() {
       .then(({ data, error }) => {
         if (error) console.error("Profile fetch error:", error);
         if (data) {
-          setFullName(data.full_name || "");
-          setEmail(data.email || user.email || "");
+          if (data.full_name) setFullName(data.full_name);
+          if (data.email) setEmail(data.email);
         }
       });
 

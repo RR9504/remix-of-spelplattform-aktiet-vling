@@ -5,29 +5,37 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCompetition } from "@/contexts/CompetitionContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Users, Trophy } from "lucide-react";
 import { toast } from "sonner";
 
 export default function JoinLanding() {
   const { type, code } = useParams<{ type: string; code: string }>();
   const { user, loading: authLoading } = useAuth();
-  const { refresh } = useCompetition();
+  const { teams, refresh } = useCompetition();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(false);
-  const [target, setTarget] = useState<{ name: string; id: string; extra?: string } | null>(null);
+  const [target, setTarget] = useState<{ name: string; id: string; extra?: string; initialBalance?: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [selectedTeamId, setSelectedTeamId] = useState<string>("");
 
   useEffect(() => {
     if (authLoading) return;
     if (!user) {
-      // Save the join URL and redirect to auth
       sessionStorage.setItem("joinRedirect", window.location.pathname);
       navigate("/auth");
       return;
     }
     fetchTarget();
   }, [user, authLoading, type, code]);
+
+  // Auto-select first team when teams load
+  useEffect(() => {
+    if (teams.length > 0 && !selectedTeamId) {
+      setSelectedTeamId(teams[0].id);
+    }
+  }, [teams]);
 
   const fetchTarget = async () => {
     if (!code || !type) {
@@ -53,17 +61,19 @@ export default function JoinLanding() {
     } else if (type === "competition") {
       const { data: comp } = await supabase
         .from("competitions")
-        .select("id, name, start_date, end_date")
+        .select("id, name, start_date, end_date, initial_balance")
         .eq("invite_code", code)
         .single();
 
       if (!comp) {
         setError("Tävling hittades inte med denna kod");
       } else {
+        const compData = comp as any;
         setTarget({
-          name: comp.name,
-          id: comp.id,
-          extra: `${comp.start_date} – ${comp.end_date}`,
+          name: compData.name,
+          id: compData.id,
+          extra: `${compData.start_date} – ${compData.end_date}`,
+          initialBalance: compData.initial_balance,
         });
       }
     } else {
@@ -79,7 +89,6 @@ export default function JoinLanding() {
 
     try {
       if (type === "team") {
-        // Join team
         const { error: joinError } = await supabase
           .from("team_members")
           .insert({ team_id: target.id, profile_id: user.id });
@@ -98,10 +107,31 @@ export default function JoinLanding() {
         await refresh();
         navigate(`/team/${target.id}`);
       } else if (type === "competition") {
-        // For competitions, redirect to competitions page
-        toast.info("Gå med i tävlingen via tävlingssidan");
-        await refresh();
-        navigate("/competitions");
+        if (teams.length === 0) {
+          toast.error("Du behöver skapa eller gå med i ett lag först.");
+          navigate("/onboarding");
+          setJoining(false);
+          return;
+        }
+
+        const teamId = selectedTeamId || teams[0].id;
+        const { error: joinError } = await supabase.from("competition_teams").insert({
+          competition_id: target.id,
+          team_id: teamId,
+          cash_balance_sek: target.initialBalance,
+        });
+
+        if (joinError) {
+          if (joinError.message.includes("duplicate")) {
+            toast.error("Ditt lag är redan med i denna tävling.");
+          } else {
+            toast.error("Kunde inte gå med: " + joinError.message);
+          }
+        } else {
+          toast.success(`Gick med i ${target.name}!`);
+          await refresh();
+          navigate("/");
+        }
       }
     } catch {
       toast.error("Ett fel uppstod");
@@ -156,7 +186,31 @@ export default function JoinLanding() {
           )}
         </CardHeader>
         <CardContent className="space-y-4">
-          <Button onClick={handleJoin} className="w-full" disabled={joining}>
+          {type === "competition" && teams.length > 1 && (
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">Välj lag att tävla med:</p>
+              <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Välj lag" />
+                </SelectTrigger>
+                <SelectContent>
+                  {teams.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          {type === "competition" && teams.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center">
+              Du behöver skapa eller gå med i ett lag innan du kan tävla.
+            </p>
+          )}
+          <Button
+            onClick={handleJoin}
+            className="w-full"
+            disabled={joining || (type === "competition" && teams.length === 0)}
+          >
             {joining ? (
               <Loader2 className="h-4 w-4 animate-spin mr-2" />
             ) : null}

@@ -9,6 +9,7 @@ import { Loader2, ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { formatSEK } from "@/lib/mockData";
 import { getTradeHistory } from "@/lib/api";
 import { useCompetition } from "@/contexts/CompetitionContext";
+import { NoCompetitionState } from "@/components/NoCompetitionState";
 import type { TradeHistoryEntry } from "@/types/trading";
 
 const SIDE_LABELS: Record<string, string> = {
@@ -66,7 +67,7 @@ const History = () => {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <main className="container py-6 pb-20 md:pb-6 space-y-6">
+      <main className="container py-6 pb-28 md:pb-6 space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">Transaktionshistorik</h1>
@@ -108,9 +109,7 @@ const History = () => {
         </div>
 
         {!activeCompetition ? (
-          <p className="text-muted-foreground text-center py-8">
-            Välj en tävling för att se historik.
-          </p>
+          <NoCompetitionState />
         ) : (
           <>
             <div className="flex flex-wrap gap-3">
@@ -156,7 +155,52 @@ const History = () => {
             ) : (
               <>
                 <div className="rounded-xl border bg-card p-4">
-                  <div className="overflow-x-auto">
+                  {/* Mobile cards */}
+                  <div className="space-y-3 md:hidden">
+                    {trades.map((trade) => {
+                      const pnl = trade.realized_pnl_sek;
+                      const pnlPositive = pnl !== null && pnl !== undefined && pnl >= 0;
+                      return (
+                        <div key={trade.id} className="rounded-lg border p-3 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono font-semibold text-sm">{trade.ticker}</span>
+                              <Badge
+                                variant="outline"
+                                className={`text-xs ${
+                                  trade.side === "buy" || trade.side === "cover"
+                                    ? "border-gain text-gain"
+                                    : "border-loss text-loss"
+                                }`}
+                              >
+                                {SIDE_LABELS[trade.side] || trade.side}
+                              </Badge>
+                            </div>
+                            <span className="text-xs text-muted-foreground">
+                              {new Date(trade.executed_at).toLocaleDateString("sv-SE")}
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground truncate">{trade.stock_name}</p>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-mono">{trade.shares} st @ {trade.price_per_share.toFixed(2)} {trade.currency}</span>
+                            <span
+                              className={`font-mono font-medium ${
+                                pnl !== null && pnl !== undefined
+                                  ? pnlPositive ? "text-gain" : "text-loss"
+                                  : "text-muted-foreground"
+                              }`}
+                            >
+                              {pnl !== null && pnl !== undefined
+                                ? `${pnlPositive ? "+" : ""}${formatSEK(pnl)}`
+                                : "–"}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {/* Desktop table */}
+                  <div className="hidden md:block overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>

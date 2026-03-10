@@ -13,6 +13,7 @@ import {
   Cell,
 } from "recharts";
 import { Navbar } from "@/components/Navbar";
+import { NoCompetitionState } from "@/components/NoCompetitionState";
 import { useCompetition } from "@/contexts/CompetitionContext";
 import { formatSEK } from "@/lib/mockData";
 import { supabase } from "@/integrations/supabase/client";
@@ -164,8 +165,8 @@ const Analytics = () => {
     return (
       <div className="min-h-screen bg-background">
         <Navbar />
-        <main className="container py-6 pb-20 md:pb-6">
-          <p className="text-muted-foreground text-center py-16">Välj en aktiv tävling för att se analys.</p>
+        <main className="container py-6 pb-28 md:pb-6">
+          <NoCompetitionState />
         </main>
       </div>
     );
@@ -174,7 +175,7 @@ const Analytics = () => {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <main className="container py-6 pb-20 md:pb-6 space-y-6">
+      <main className="container py-6 pb-28 md:pb-6 space-y-6">
         <div className="flex items-center gap-2">
           <BarChart3 className="h-6 w-6 text-primary" />
           <h1 className="text-2xl font-bold">Portföljanalys</h1>
@@ -288,7 +289,7 @@ const Analytics = () => {
                     <BarChart data={stats.pnlByStock.slice(0, 10)} layout="vertical">
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 25%, 15%)" />
                       <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={(v) => `${Math.round(v / 1000)}k`} />
-                      <YAxis type="category" dataKey="ticker" tick={{ fontSize: 10 }} width={70} />
+                      <YAxis type="category" dataKey="ticker" tick={{ fontSize: 10 }} width={50} />
                       <Tooltip
                         contentStyle={{ background: "hsl(222, 25%, 9%)", border: "1px solid hsl(222, 25%, 20%)", borderRadius: 8, fontSize: 12 }}
                         formatter={(v: number) => [formatSEK(v), "P&L"]}
@@ -376,7 +377,7 @@ function MetricCard({
         <Icon className="h-3.5 w-3.5" />
         {label}
       </div>
-      <p className={`text-lg font-mono font-semibold ${positive === true ? "text-gain" : positive === false ? "text-loss" : ""}`}>
+      <p className={`text-base sm:text-lg font-mono font-semibold truncate ${positive === true ? "text-gain" : positive === false ? "text-loss" : ""}`}>
         {value}
       </p>
       {sub && <p className="text-[11px] text-muted-foreground">{sub}</p>}
