@@ -7,14 +7,19 @@ import type { StockSearchResult, StockPrice } from "@/types/trading";
 import { TradeDialog } from "./TradeDialog";
 import { WatchlistButton } from "./WatchlistButton";
 
-export function StockSearch() {
+export function StockSearch({ initialQuery }: { initialQuery?: string } = {}) {
   const navigate = useNavigate();
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery || "");
   const [results, setResults] = useState<StockSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedStock, setSelectedStock] = useState<(StockSearchResult & { priceData?: StockPrice }) | null>(null);
   const [fetchingPrice, setFetchingPrice] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+
+  // Update query when initialQuery changes (e.g. from cert button click)
+  useEffect(() => {
+    if (initialQuery) setQuery(initialQuery);
+  }, [initialQuery]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
