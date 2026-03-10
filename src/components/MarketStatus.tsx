@@ -52,7 +52,7 @@ function StatusBadge({ label, open, hours, flag, onClick }: { label: string; ope
 
 function IndexDialog({ market, onClose }: { market: "SE" | "US"; onClose: () => void }) {
   const navigate = useNavigate();
-  const title = market === "SE" ? "Nasdaq Stockholm" : "Populära US-aktier";
+  const title = market === "SE" ? "Nasdaq Stockholm" : "NYSE / NASDAQ";
   const fallbackStocks = market === "SE" ? NASDAQ_STOCKHOLM : US_POPULAR;
 
   const [stocks, setStocks] = useState<IndexStock[]>([]);
@@ -109,22 +109,39 @@ function IndexDialog({ market, onClose }: { market: "SE" | "US"; onClose: () => 
         setStocks(merged);
         setPrices(priceMap);
       } else {
-        // US — use fallback list + prices from cache
-        setStocks(fallbackStocks);
+        // US — try DB first, fallback to hardcoded
+        const { data: dbStocks } = await (supabase
+          .from("exchange_stocks" as any)
+          .select("ticker, name")
+          .eq("exchange", "XNYS")
+          .order("name") as any);
 
-        const tickers = fallbackStocks.map((s) => s.ticker);
-        const { data } = await supabase
-          .from("stock_price_cache")
-          .select("ticker, price_sek, change_percent")
-          .in("ticker", tickers);
+        const baseList: IndexStock[] =
+          dbStocks && dbStocks.length > 10
+            ? (dbStocks as IndexStock[])
+            : fallbackStocks;
 
+        // Fetch prices for all US tickers from cache
+        const tickers = baseList.map((s) => s.ticker);
+        const batchSize = 100;
         const priceMap: Record<string, PriceInfo> = {};
-        for (const row of data || []) {
-          priceMap[row.ticker] = {
-            price_sek: Number(row.price_sek),
-            change_percent: row.change_percent != null ? Number(row.change_percent) : null,
-          };
+
+        for (let i = 0; i < tickers.length; i += batchSize) {
+          const batch = tickers.slice(i, i + batchSize);
+          const { data } = await supabase
+            .from("stock_price_cache")
+            .select("ticker, price_sek, change_percent")
+            .in("ticker", batch);
+
+          for (const row of data || []) {
+            priceMap[row.ticker] = {
+              price_sek: Number(row.price_sek),
+              change_percent: row.change_percent != null ? Number(row.change_percent) : null,
+            };
+          }
         }
+
+        setStocks(baseList);
         setPrices(priceMap);
       }
       setLoading(false);

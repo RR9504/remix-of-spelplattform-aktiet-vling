@@ -80,6 +80,81 @@ async function discoverStockholmStocks(): Promise<Array<{ ticker: string; name: 
   return Array.from(stocks.entries()).map(([ticker, name]) => ({ ticker, name }));
 }
 
+// Discover US stocks from NYSE and NASDAQ
+async function discoverUSStocks(): Promise<Array<{ ticker: string; name: string }>> {
+  const stocks = new Map<string, string>();
+  const usExchanges = new Set(["NYQ", "NMS", "NGM", "NYSE", "NASDAQ", "NasdaqGS", "NasdaqGM", "NasdaqCM"]);
+
+  const queries = [
+    // Mega/large cap — direct ticker searches
+    "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA", "BRK", "UNH", "JNJ",
+    "JPM", "V", "PG", "MA", "HD", "CVX", "MRK", "ABBV", "LLY", "PEP",
+    "KO", "COST", "AVGO", "MCD", "WMT", "CSCO", "TMO", "ACN", "ABT", "DHR",
+    "NKE", "TXN", "NEE", "UNP", "PM", "RTX", "HON", "LOW", "UPS", "ELV",
+    "BMY", "AMGN", "SCHW", "INTC", "QCOM", "INTU", "BA", "GE", "CAT", "AMAT",
+    "DE", "ADP", "GILD", "ISRG", "MDLZ", "ADI", "REGN", "VRTX", "SYK", "BKNG",
+    "LRCX", "MMC", "CI", "ZTS", "CB", "ETN", "BDX", "CME", "PLD", "DUK",
+    "SO", "CL", "AON", "ITW", "SHW", "MO", "PYPL", "SNPS", "CDNS",
+    // Tech & growth
+    "CRM", "AMD", "NFLX", "UBER", "ABNB", "SQ", "SHOP", "SNOW", "PLTR", "DDOG",
+    "CRWD", "ZS", "NET", "MDB", "PANW", "COIN", "RBLX", "SPOT", "PINS", "SNAP",
+    "ROKU", "TWLO", "OKTA", "ZM", "DOCU", "U", "RIVN", "LCID", "NIO", "XPEV",
+    "LI", "SOFI", "HOOD", "AFRM", "PATH", "BILL", "DKNG", "DASH", "LYFT",
+    // Finance
+    "GS", "MS", "BLK", "AXP", "C", "BAC", "WFC", "USB", "PNC", "TFC",
+    // Healthcare & pharma
+    "PFE", "MRNA", "BIIB", "ILMN", "DXCM", "ALGN", "VEEV",
+    // Consumer
+    "SBUX", "TGT", "DIS", "LULU", "ROST", "DG", "DLTR", "EL",
+    // Industrial & energy
+    "XOM", "COP", "SLB", "EOG", "OXY", "PSX", "VLO", "MPC",
+    "LMT", "NOC", "GD", "F", "GM", "DAL", "UAL", "AAL", "LUV",
+    // Telecom & media
+    "T", "VZ", "TMUS", "CMCSA", "PARA", "WBD", "FOX", "NWSA",
+    // Broad name searches
+    "apple", "microsoft", "google", "amazon", "nvidia", "tesla", "meta",
+    "netflix", "disney", "boeing", "intel", "paypal", "spotify", "uber",
+    "coinbase", "visa", "mastercard", "walmart", "coca", "pepsi",
+    "starbucks", "mcdonalds", "nike", "adobe", "salesforce", "oracle",
+    "cisco", "broadcom", "qualcomm", "advanced micro",
+    "berkshire", "johnson", "procter", "unitedhealth", "exxon",
+    "chevron", "merck", "pfizer", "moderna", "home depot",
+    "goldman", "morgan stanley", "blackrock", "palantir",
+    "crowdstrike", "snowflake", "datadog", "cloudflare",
+    "airbnb", "doordash", "rivian", "lucid",
+  ];
+
+  for (const q of queries) {
+    try {
+      const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=20&newsCount=0&listsCount=0&enableFuzzyQuery=false`;
+      const res = await fetch(url, {
+        headers: { "User-Agent": "Mozilla/5.0" },
+      });
+
+      if (!res.ok) continue;
+
+      const data = await res.json();
+      for (const quote of (data.quotes || [])) {
+        if (quote.quoteType !== "EQUITY") continue;
+        const ticker = quote.symbol as string;
+        // Filter to US exchanges only — skip .ST, .L, .TO etc.
+        if (ticker.includes(".")) continue;
+        const ex = quote.exchange || "";
+        if (!usExchanges.has(ex)) continue;
+        if (!stocks.has(ticker)) {
+          stocks.set(ticker, quote.shortname || quote.longname || ticker);
+        }
+      }
+
+      await new Promise((r) => setTimeout(r, 150));
+    } catch {
+      // Skip failed searches
+    }
+  }
+
+  return Array.from(stocks.entries()).map(([ticker, name]) => ({ ticker, name }));
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -119,6 +194,8 @@ serve(async (req) => {
 
     if (exchange === "XSTO") {
       stocks = await discoverStockholmStocks();
+    } else if (exchange === "XNYS") {
+      stocks = await discoverUSStocks();
     }
 
     if (stocks.length === 0) {
