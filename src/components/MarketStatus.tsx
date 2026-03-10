@@ -1,81 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Loader2 } from "lucide-react";
+import { Loader2, Search } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
-import { isMarketOpen } from "@/lib/mockData";
-import { formatSEK } from "@/lib/mockData";
-
-interface IndexStock {
-  ticker: string;
-  name: string;
-}
-
-const OMXS30: IndexStock[] = [
-  { ticker: "ABB.ST", name: "ABB" },
-  { ticker: "ALFA.ST", name: "Alfa Laval" },
-  { ticker: "ASSA-B.ST", name: "Assa Abloy B" },
-  { ticker: "ATCO-A.ST", name: "Atlas Copco A" },
-  { ticker: "ATCO-B.ST", name: "Atlas Copco B" },
-  { ticker: "AZN.ST", name: "AstraZeneca" },
-  { ticker: "BOL.ST", name: "Boliden" },
-  { ticker: "EQT.ST", name: "EQT" },
-  { ticker: "ERIC-B.ST", name: "Ericsson B" },
-  { ticker: "ESSITY-B.ST", name: "Essity B" },
-  { ticker: "EVO.ST", name: "Evolution" },
-  { ticker: "GETI-B.ST", name: "Getinge B" },
-  { ticker: "HEXA-B.ST", name: "Hexagon B" },
-  { ticker: "HM-B.ST", name: "H&M B" },
-  { ticker: "INVE-B.ST", name: "Investor B" },
-  { ticker: "KINV-B.ST", name: "Kinnevik B" },
-  { ticker: "NDA-SE.ST", name: "Nordea" },
-  { ticker: "NIBE-B.ST", name: "Nibe Industrier B" },
-  { ticker: "SAND.ST", name: "Sandvik" },
-  { ticker: "SCA-B.ST", name: "SCA B" },
-  { ticker: "SEB-A.ST", name: "SEB A" },
-  { ticker: "SHB-A.ST", name: "Handelsbanken A" },
-  { ticker: "SINCH.ST", name: "Sinch" },
-  { ticker: "SKA-B.ST", name: "Skanska B" },
-  { ticker: "SKF-B.ST", name: "SKF B" },
-  { ticker: "SSAB-A.ST", name: "SSAB A" },
-  { ticker: "SWED-A.ST", name: "Swedbank A" },
-  { ticker: "TEL2-B.ST", name: "Tele2 B" },
-  { ticker: "TELIA.ST", name: "Telia" },
-  { ticker: "VOLV-B.ST", name: "Volvo B" },
-];
-
-const US_POPULAR: IndexStock[] = [
-  { ticker: "AAPL", name: "Apple" },
-  { ticker: "AMZN", name: "Amazon" },
-  { ticker: "GOOGL", name: "Alphabet (Google)" },
-  { ticker: "META", name: "Meta Platforms" },
-  { ticker: "MSFT", name: "Microsoft" },
-  { ticker: "NVDA", name: "NVIDIA" },
-  { ticker: "TSLA", name: "Tesla" },
-  { ticker: "AMD", name: "AMD" },
-  { ticker: "NFLX", name: "Netflix" },
-  { ticker: "DIS", name: "Walt Disney" },
-  { ticker: "JPM", name: "JPMorgan Chase" },
-  { ticker: "V", name: "Visa" },
-  { ticker: "MA", name: "Mastercard" },
-  { ticker: "JNJ", name: "Johnson & Johnson" },
-  { ticker: "PG", name: "Procter & Gamble" },
-  { ticker: "UNH", name: "UnitedHealth" },
-  { ticker: "HD", name: "Home Depot" },
-  { ticker: "KO", name: "Coca-Cola" },
-  { ticker: "PEP", name: "PepsiCo" },
-  { ticker: "COST", name: "Costco" },
-  { ticker: "ABBV", name: "AbbVie" },
-  { ticker: "CRM", name: "Salesforce" },
-  { ticker: "MCD", name: "McDonald's" },
-  { ticker: "NKE", name: "Nike" },
-  { ticker: "BA", name: "Boeing" },
-  { ticker: "INTC", name: "Intel" },
-  { ticker: "PYPL", name: "PayPal" },
-  { ticker: "UBER", name: "Uber" },
-  { ticker: "COIN", name: "Coinbase" },
-  { ticker: "SPOT", name: "Spotify" },
-];
+import { isMarketOpen, formatSEK } from "@/lib/mockData";
+import { NASDAQ_STOCKHOLM, US_POPULAR, type IndexStock } from "@/data/exchangeStocks";
 
 interface PriceInfo {
   price_sek: number;
@@ -94,10 +24,7 @@ export function MarketStatus() {
         <StatusBadge label="NYSE/NASDAQ" open={usOpen} hours="15:30–22:00" flag="🇺🇸" onClick={() => setOpenMarket("US")} />
       </div>
       {openMarket && (
-        <IndexDialog
-          market={openMarket}
-          onClose={() => setOpenMarket(null)}
-        />
+        <IndexDialog market={openMarket} onClose={() => setOpenMarket(null)} />
       )}
     </>
   );
@@ -125,29 +52,80 @@ function StatusBadge({ label, open, hours, flag, onClick }: { label: string; ope
 
 function IndexDialog({ market, onClose }: { market: "SE" | "US"; onClose: () => void }) {
   const navigate = useNavigate();
-  const stocks = market === "SE" ? OMXS30 : US_POPULAR;
-  const title = market === "SE" ? "OMXS30" : "Populära US-aktier";
+  const baseStocks = market === "SE" ? NASDAQ_STOCKHOLM : US_POPULAR;
+  const title = market === "SE" ? "Nasdaq Stockholm" : "Populära US-aktier";
+  const subtitle = market === "SE" ? `Large Cap + Mid Cap · ${baseStocks.length} aktier` : `${baseStocks.length} aktier`;
+
   const [prices, setPrices] = useState<Record<string, PriceInfo>>({});
+  const [extraStocks, setExtraStocks] = useState<IndexStock[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
-    const tickers = stocks.map((s) => s.ticker);
-    supabase
-      .from("stock_price_cache")
-      .select("ticker, price_sek, change_percent")
-      .in("ticker", tickers)
-      .then(({ data }) => {
-        const map: Record<string, PriceInfo> = {};
+    const load = async () => {
+      if (market === "SE") {
+        // Fetch ALL .ST tickers from cache — picks up stocks users have discovered
+        const { data: cacheRows } = await supabase
+          .from("stock_price_cache")
+          .select("ticker, price_sek, change_percent, stock_name")
+          .like("ticker", "%.ST");
+
+        const priceMap: Record<string, PriceInfo> = {};
+        const knownTickers = new Set(baseStocks.map((s) => s.ticker));
+        const extras: IndexStock[] = [];
+
+        for (const row of cacheRows || []) {
+          priceMap[row.ticker] = {
+            price_sek: Number(row.price_sek),
+            change_percent: row.change_percent != null ? Number(row.change_percent) : null,
+          };
+          if (!knownTickers.has(row.ticker) && row.stock_name) {
+            extras.push({ ticker: row.ticker, name: row.stock_name });
+          }
+        }
+
+        setPrices(priceMap);
+        setExtraStocks(extras.sort((a, b) => a.name.localeCompare(b.name, "sv")));
+      } else {
+        // US stocks — fetch prices for the hardcoded list
+        const tickers = baseStocks.map((s) => s.ticker);
+        const { data } = await supabase
+          .from("stock_price_cache")
+          .select("ticker, price_sek, change_percent")
+          .in("ticker", tickers);
+
+        const priceMap: Record<string, PriceInfo> = {};
         for (const row of data || []) {
-          map[row.ticker] = {
+          priceMap[row.ticker] = {
             price_sek: Number(row.price_sek),
             change_percent: row.change_percent != null ? Number(row.change_percent) : null,
           };
         }
-        setPrices(map);
-        setLoading(false);
-      });
+        setPrices(priceMap);
+      }
+      setLoading(false);
+    };
+    load();
   }, [market]);
+
+  const allStocks = useMemo(() => {
+    const combined = [...baseStocks, ...extraStocks];
+    // Deduplicate by ticker
+    const seen = new Set<string>();
+    return combined.filter((s) => {
+      if (seen.has(s.ticker)) return false;
+      seen.add(s.ticker);
+      return true;
+    });
+  }, [baseStocks, extraStocks]);
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return allStocks;
+    const q = search.toLowerCase();
+    return allStocks.filter(
+      (s) => s.ticker.toLowerCase().includes(q) || s.name.toLowerCase().includes(q)
+    );
+  }, [allStocks, search]);
 
   const handleClick = (ticker: string) => {
     onClose();
@@ -159,21 +137,34 @@ function IndexDialog({ market, onClose }: { market: "SE" | "US"; onClose: () => 
       <DialogContent className="sm:max-w-md max-h-[80vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
+          <p className="text-xs text-muted-foreground">{subtitle}</p>
         </DialogHeader>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Sök aktie..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9 h-9"
+            autoFocus
+          />
+        </div>
         {loading ? (
           <div className="flex justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
+        ) : filtered.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-8">Inga aktier matchar sökningen</p>
         ) : (
-          <div className="overflow-y-auto -mx-1 px-1 space-y-1">
-            {stocks.map((stock) => {
+          <div className="overflow-y-auto -mx-1 px-1 space-y-0.5 min-h-0">
+            {filtered.map((stock) => {
               const price = prices[stock.ticker];
               const changePositive = (price?.change_percent ?? 0) >= 0;
               return (
                 <button
                   key={stock.ticker}
                   onClick={() => handleClick(stock.ticker)}
-                  className="w-full flex items-center justify-between rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-muted/50"
+                  className="w-full flex items-center justify-between rounded-lg px-3 py-2 text-left transition-colors hover:bg-muted/50"
                 >
                   <div className="min-w-0">
                     <p className="font-mono font-semibold text-sm">{stock.ticker.replace(".ST", "")}</p>
