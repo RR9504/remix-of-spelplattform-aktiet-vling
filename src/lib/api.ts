@@ -447,13 +447,25 @@ export async function getAchievements(profileId?: string): Promise<{
 
 export async function getTeamProfile(teamId: string, competitionId?: string): Promise<any | null> {
   try {
-    const headers = await getAuthHeaders();
     const params = new URLSearchParams({ team_id: teamId });
     if (competitionId) params.set("competition_id", competitionId);
-    const res = await fetch(
-      `${SUPABASE_URL}/functions/v1/get-team-profile?${params}`,
-      { headers }
-    );
+    const url = `${SUPABASE_URL}/functions/v1/get-team-profile?${params}`;
+
+    const headers = await getAuthHeaders();
+    let res = await fetch(url, { headers });
+
+    // Retry with anon key if session token is expired/invalid
+    if (res.status === 401) {
+      const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      res = await fetch(url, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${anonKey}`,
+          apikey: anonKey,
+        },
+      });
+    }
+
     if (!res.ok) return null;
     return await res.json();
   } catch {
