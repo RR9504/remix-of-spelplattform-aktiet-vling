@@ -110,7 +110,12 @@ const TeamProfilePage = () => {
             <Card>
               <CardContent className="p-4">
                 <div className="text-muted-foreground text-xs mb-1">Kassa</div>
-                <p className="font-mono font-bold text-lg">{formatSEK(portfolio.cash)}</p>
+                <p className="font-mono font-bold text-lg">{formatSEK(portfolio.cash + (portfolio.order_reserved || 0))}</p>
+                {portfolio.order_reserved > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    varav {formatSEK(portfolio.order_reserved)} i ordrar
+                  </p>
+                )}
               </CardContent>
             </Card>
             <Card>

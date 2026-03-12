@@ -146,19 +146,36 @@ serve(async (req) => {
         .eq("team_id", teamId)
         .single();
 
+      // Get reserved amounts from pending orders
+      const { data: pendingOrders } = await supabase
+        .from("pending_orders")
+        .select("reserved_amount_sek")
+        .eq("competition_id", competitionId)
+        .eq("team_id", teamId)
+        .eq("status", "pending");
+
+      const orderReserved = (pendingOrders || []).reduce(
+        (sum: number, o: any) => sum + (Number(o.reserved_amount_sek) || 0),
+        0
+      );
+
       if (compTeam) {
         const holdingsValue = holdings.reduce(
           (sum: number, h: any) => sum + (h.market_value_sek ?? 0),
           0
         );
-        const shortMargin = compTeam.margin_reserved_sek ?? 0;
-        const totalValue = compTeam.cash_balance_sek + holdingsValue + shortMargin;
+        const shortMargin = Number(compTeam.margin_reserved_sek) ?? 0;
+        // cash_balance_sek already has order reservations deducted,
+        // so add them back to get real total value
+        const cashBalance = Number(compTeam.cash_balance_sek);
+        const totalValue = cashBalance + orderReserved + holdingsValue + shortMargin;
         const startCapital = comp?.initial_balance ?? 0;
         const returnAmount = totalValue - startCapital;
         const returnPercent = startCapital > 0 ? (returnAmount / startCapital) * 100 : 0;
 
         portfolio = {
-          cash: compTeam.cash_balance_sek,
+          cash: cashBalance,
+          order_reserved: orderReserved,
           holdings_value: holdingsValue,
           margin_reserved: shortMargin,
           total_value: totalValue,
