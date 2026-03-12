@@ -53,13 +53,16 @@ serve(async (req) => {
     // Get portfolio snapshots if competition specified
     let snapshots: any[] = [];
     let holdings: any[] = [];
+    let shortPositions: any[] = [];
+    let trades: any[] = [];
+    let portfolio: any = null;
     let showHoldings = false;
 
     if (competitionId) {
       // Get competition settings
       const { data: comp } = await supabase
         .from("competitions")
-        .select("show_holdings, end_date")
+        .select("show_holdings, end_date, initial_balance")
         .eq("id", competitionId)
         .single();
 
@@ -83,12 +86,99 @@ serve(async (req) => {
       }
 
       if (showHoldings) {
+        // Get holdings enriched with current prices
         const { data: holdingData } = await supabase
           .from("team_holdings")
           .select("*")
           .eq("competition_id", competitionId)
           .eq("team_id", teamId);
-        holdings = holdingData || [];
+
+        const rawHoldings = holdingData || [];
+
+        // Get current prices for all tickers
+        if (rawHoldings.length > 0) {
+          const tickers = rawHoldings.map((h: any) => h.ticker);
+          const { data: priceData } = await supabase
+            .from("stock_price_cache")
+            .select("ticker, price, currency, exchange_rate, price_sek, updated_at")
+            .in("ticker", tickers);
+
+          const priceMap = new Map(
+            (priceData || []).map((p: any) => [p.ticker, p])
+          );
+
+          holdings = rawHoldings.map((h: any) => {
+            const price = priceMap.get(h.ticker);
+            const currentPriceSek = price?.price_sek ?? null;
+            const costBasis = h.total_shares * h.avg_cost_per_share_sek;
+            const marketValue = currentPriceSek ? h.total_shares * currentPriceSek : null;
+            const unrealizedPnl = marketValue !== null ? marketValue - costBasis : null;
+            const unrealizedPnlPercent = unrealizedPnl !== null && costBasis > 0
+              ? (unrealizedPnl / costBasis) * 100
+              : null;
+
+            return {
+              ticker: h.ticker,
+              stock_name: h.stock_name,
+              currency: h.currency,
+              total_shares: h.total_shares,
+              avg_cost_per_share_sek: h.avg_cost_per_share_sek,
+              current_price_sek: currentPriceSek,
+              market_value_sek: marketValue,
+              unrealized_pnl_sek: unrealizedPnl,
+              unrealized_pnl_percent: unrealizedPnlPercent,
+            };
+          });
+        }
+
+        // Get short positions
+        const { data: shortData } = await supabase
+          .from("short_positions")
+          .select("*")
+          .eq("competition_id", competitionId)
+          .eq("team_id", teamId)
+          .is("closed_at", null);
+        shortPositions = shortData || [];
+
+        // Get recent trades (last 20)
+        const { data: tradeData } = await supabase
+          .from("trades")
+          .select("id, ticker, stock_name, side, shares, price_per_share, currency, exchange_rate, total_sek, realized_pnl_sek, executed_at")
+          .eq("competition_id", competitionId)
+          .eq("team_id", teamId)
+          .order("executed_at", { ascending: false })
+          .limit(20);
+        trades = tradeData || [];
+
+        // Get cash balance for portfolio summary
+        const { data: compTeam } = await supabase
+          .from("competition_teams")
+          .select("cash_balance_sek, margin_reserved_sek")
+          .eq("competition_id", competitionId)
+          .eq("team_id", teamId)
+          .single();
+
+        if (compTeam) {
+          const holdingsValue = holdings.reduce(
+            (sum: number, h: any) => sum + (h.market_value_sek ?? 0),
+            0
+          );
+          const shortMargin = compTeam.margin_reserved_sek ?? 0;
+          const totalValue = compTeam.cash_balance_sek + holdingsValue + shortMargin;
+          const startCapital = comp?.initial_balance ?? 0;
+          const returnAmount = totalValue - startCapital;
+          const returnPercent = startCapital > 0 ? (returnAmount / startCapital) * 100 : 0;
+
+          portfolio = {
+            cash: compTeam.cash_balance_sek,
+            holdings_value: holdingsValue,
+            margin_reserved: shortMargin,
+            total_value: totalValue,
+            start_capital: startCapital,
+            return_amount: returnAmount,
+            return_percent: returnPercent,
+          };
+        }
       }
     }
 
@@ -110,6 +200,9 @@ serve(async (req) => {
         })),
         snapshots,
         holdings: showHoldings ? holdings : null,
+        short_positions: showHoldings ? shortPositions : null,
+        trades: showHoldings ? trades : null,
+        portfolio: showHoldings ? portfolio : null,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
