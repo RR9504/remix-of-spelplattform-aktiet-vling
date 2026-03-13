@@ -46,8 +46,8 @@ serve(async (req) => {
       });
     }
 
-    if (shares > 100000) {
-      return new Response(JSON.stringify({ success: false, error: "Max 100 000 enheter per affär" }), {
+    if (shares > 10000000) {
+      return new Response(JSON.stringify({ success: false, error: "Max 10 000 000 enheter per affär" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
