@@ -155,7 +155,7 @@ serve(async (req) => {
         const response = await fetch(yahooUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
         if (response.ok) {
           const data = await response.json();
-          const allowedTypes = new Set(["EQUITY", "CRYPTOCURRENCY", "FUTURE"]);
+          const allowedTypes = new Set(["EQUITY", "ETF", "CRYPTOCURRENCY", "FUTURE"]);
           const yahooResults = (data.quotes || [])
             .filter((q: any) => allowedTypes.has(q.quoteType))
             .map((q: any) => ({
@@ -195,7 +195,7 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    const allowedTypes = new Set(["EQUITY", "CRYPTOCURRENCY", "FUTURE"]);
+    const allowedTypes = new Set(["EQUITY", "ETF", "CRYPTOCURRENCY", "FUTURE"]);
     const quotes = (data.quotes || [])
       .filter((q: any) => allowedTypes.has(q.quoteType))
       .map((q: any) => ({
