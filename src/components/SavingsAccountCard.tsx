@@ -130,7 +130,7 @@ export function SavingsAccountCard({ competitionId, teamId, cashBalance }: Savin
         </div>
 
         <p className="text-xs text-muted-foreground">
-          Ränta beräknas dagligen. Insättningsgaranti upp till 1 050 000 kr.
+          Ränta beräknas dagligen. Insättningsgaranti upp till 1 150 000 kr.
           <a href="https://www.smsparbank.se/privat/spara-och-placera/sparkonton/Haull-annan.html" target="_blank" rel="noopener noreferrer" className="ml-1 text-primary hover:underline">
             Läs mer
           </a>
