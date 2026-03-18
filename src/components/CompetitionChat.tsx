@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { MessageCircle, Send, Loader2, ChevronDown, ChevronUp } from "lucide-react";
+import { MessageCircle, Send, Loader2, ChevronDown, ChevronUp, Users, Globe } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
 
@@ -14,40 +14,32 @@ interface ChatMessage {
   id: string;
   competition_id: string;
   profile_id: string;
+  team_id?: string | null;
   body: string;
   created_at: string;
   sender_name?: string;
 }
 
+type ChatTab = "competition" | "team";
+
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 export function CompetitionChat() {
   const { user } = useAuth();
-  const { activeCompetition } = useCompetition();
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const { activeCompetition, activeTeam } = useCompetition();
+  const [compMessages, setCompMessages] = useState<ChatMessage[]>([]);
+  const [teamMessages, setTeamMessages] = useState<ChatMessage[]>([]);
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
   const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<ChatTab>("competition");
   const [lastSent, setLastSent] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const profileCache = useRef<Record<string, string>>({});
 
-  const fetchMessages = useCallback(async () => {
-    if (!activeCompetition) return;
-    const { data } = await supabase
-      .from("competition_messages")
-      .select("*")
-      .eq("competition_id", activeCompetition.id)
-      .order("created_at", { ascending: true })
-      .limit(100);
+  const messages = tab === "competition" ? compMessages : teamMessages;
 
-    if (data) {
-      const enriched = await enrichMessages(data as ChatMessage[]);
-      setMessages(enriched);
-    }
-  }, [activeCompetition?.id]);
-
-  const enrichMessages = async (msgs: ChatMessage[]) => {
+  const enrichMessages = useCallback(async (msgs: ChatMessage[]) => {
     const profileIds = [...new Set(msgs.map((m) => m.profile_id))];
     const missing = profileIds.filter((id) => !profileCache.current[id]);
 
@@ -66,14 +58,49 @@ export function CompetitionChat() {
       ...m,
       sender_name: profileCache.current[m.profile_id] || "Okänd",
     }));
-  };
+  }, []);
+
+  const fetchMessages = useCallback(async () => {
+    if (!activeCompetition) return;
+
+    // Fetch competition messages (team_id IS NULL)
+    const { data: compData } = await supabase
+      .from("competition_messages")
+      .select("*")
+      .eq("competition_id", activeCompetition.id)
+      .is("team_id", null)
+      .order("created_at", { ascending: true })
+      .limit(100);
+
+    if (compData) {
+      const enriched = await enrichMessages(compData as ChatMessage[]);
+      setCompMessages(enriched);
+    }
+
+    // Fetch team messages if team is active
+    if (activeTeam) {
+      const { data: teamData } = await supabase
+        .from("competition_messages")
+        .select("*")
+        .eq("competition_id", activeCompetition.id)
+        .eq("team_id", activeTeam.id)
+        .order("created_at", { ascending: true })
+        .limit(100);
+
+      if (teamData) {
+        const enriched = await enrichMessages(teamData as ChatMessage[]);
+        setTeamMessages(enriched);
+      }
+    }
+  }, [activeCompetition?.id, activeTeam?.id, enrichMessages]);
 
   useEffect(() => {
     if (!activeCompetition) return;
     fetchMessages();
 
-    const channel = supabase
-      .channel(`chat-${activeCompetition.id}`)
+    // Listen for new competition messages
+    const compChannel = supabase
+      .channel(`chat-comp-${activeCompetition.id}`)
       .on(
         "postgres_changes",
         {
@@ -85,27 +112,31 @@ export function CompetitionChat() {
         async (payload) => {
           const newMsg = payload.new as ChatMessage;
           const enriched = await enrichMessages([newMsg]);
-          setMessages((prev) => [...prev, enriched[0]]);
+
+          if (!newMsg.team_id) {
+            setCompMessages((prev) => [...prev, enriched[0]]);
+          } else if (activeTeam && newMsg.team_id === activeTeam.id) {
+            setTeamMessages((prev) => [...prev, enriched[0]]);
+          }
         }
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(compChannel);
     };
-  }, [activeCompetition?.id]);
+  }, [activeCompetition?.id, activeTeam?.id, fetchMessages, enrichMessages]);
 
   // Auto-scroll on new messages
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages.length]);
+  }, [messages.length, tab]);
 
   const handleSend = async () => {
     if (!body.trim() || !activeCompetition || !user) return;
 
-    // Rate limit: 1 msg / 2 sec
     const now = Date.now();
     if (now - lastSent < 2000) return;
 
@@ -122,6 +153,7 @@ export function CompetitionChat() {
         body: JSON.stringify({
           competition_id: activeCompetition.id,
           body: body.trim(),
+          ...(tab === "team" && activeTeam ? { team_id: activeTeam.id } : {}),
         }),
       });
       const result = await res.json();
@@ -137,6 +169,8 @@ export function CompetitionChat() {
 
   if (!activeCompetition) return null;
 
+  const totalMessages = compMessages.length + teamMessages.length;
+
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
       <div className="rounded-xl border bg-card">
@@ -144,9 +178,9 @@ export function CompetitionChat() {
           <button className="flex items-center justify-between w-full p-4 hover:bg-muted rounded-t-xl transition-colors">
             <div className="flex items-center gap-2">
               <MessageCircle className="h-5 w-5 text-primary" />
-              <span className="font-semibold">Tävlingschatt</span>
+              <span className="font-semibold">Chatt</span>
               <span className="text-xs text-muted-foreground">
-                ({messages.length} meddelanden)
+                ({totalMessages} meddelanden)
               </span>
             </div>
             {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -155,11 +189,43 @@ export function CompetitionChat() {
 
         <CollapsibleContent>
           <div className="border-t">
+            {/* Tab switcher */}
+            <div className="flex border-b">
+              <button
+                onClick={() => setTab("competition")}
+                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-medium transition-colors ${
+                  tab === "competition"
+                    ? "text-primary border-b-2 border-primary"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Globe className="h-3.5 w-3.5" />
+                Tävling
+                <span className="text-xs opacity-60">({compMessages.length})</span>
+              </button>
+              {activeTeam && (
+                <button
+                  onClick={() => setTab("team")}
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-medium transition-colors ${
+                    tab === "team"
+                      ? "text-primary border-b-2 border-primary"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Users className="h-3.5 w-3.5" />
+                  {activeTeam.name}
+                  <span className="text-xs opacity-60">({teamMessages.length})</span>
+                </button>
+              )}
+            </div>
+
             <ScrollArea className="h-64 p-4" ref={scrollRef}>
               <div className="space-y-3">
                 {messages.length === 0 && (
                   <p className="text-sm text-muted-foreground text-center py-8">
-                    Inga meddelanden ännu. Skriv det första!
+                    {tab === "competition"
+                      ? "Inga meddelanden ännu. Skriv det första!"
+                      : "Inga lagmeddelanden ännu. Bara ditt lag kan se dessa."}
                   </p>
                 )}
                 {messages.map((msg) => {
@@ -179,7 +245,7 @@ export function CompetitionChat() {
                         )}
                         <p className="text-sm whitespace-pre-wrap break-words">{msg.body}</p>
                       </div>
-                      <span className="text-[10px] text-muted-foreground mt-0.5">
+                      <span className="text-xs text-muted-foreground mt-0.5">
                         {formatDistanceToNow(new Date(msg.created_at), { addSuffix: true, locale: sv })}
                       </span>
                     </div>
@@ -190,7 +256,7 @@ export function CompetitionChat() {
 
             <div className="flex items-center gap-2 p-3 border-t">
               <Input
-                placeholder="Skriv ett meddelande..."
+                placeholder={tab === "competition" ? "Skriv till alla lag..." : `Skriv till ${activeTeam?.name}...`}
                 value={body}
                 onChange={(e) => setBody(e.target.value)}
                 onKeyDown={(e) => {

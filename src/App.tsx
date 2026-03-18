@@ -23,6 +23,7 @@ import Analytics from "./pages/Analytics";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 import { FeedbackButton } from "@/components/FeedbackButton";
+import { FeedbackResponseOverlay } from "@/components/FeedbackResponseOverlay";
 
 const queryClient = new QueryClient();
 
@@ -64,6 +65,7 @@ const App = () => (
           <CompetitionProvider>
             <NotificationProvider>
               <FeedbackButton />
+              <FeedbackResponseOverlay />
               <Routes>
                 <Route path="/auth" element={<PublicRoute><Auth /></PublicRoute>} />
                 <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />

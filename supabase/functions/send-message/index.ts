@@ -20,12 +20,9 @@ serve(async (req) => {
     }
 
     const token = authHeader.replace("Bearer ", "");
+    const supabase = createClient(supabaseUrl, serviceKey);
 
-    // Create a user-scoped client to verify the JWT
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const { data: { user: authUser }, error: authError } = await createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: `Bearer ${token}` } },
-    }).auth.getUser();
+    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);
 
     if (authError || !authUser) {
       return new Response(JSON.stringify({ success: false, error: "Ogiltig token" }), {
@@ -35,7 +32,7 @@ serve(async (req) => {
     }
     const userId = authUser.id;
 
-    const { competition_id, body } = await req.json();
+    const { competition_id, body, team_id } = await req.json();
 
     if (!competition_id || !body || typeof body !== "string") {
       return new Response(JSON.stringify({ success: false, error: "competition_id och body krävs" }), {
@@ -50,8 +47,6 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    const supabase = createClient(supabaseUrl, serviceKey);
 
     // Check competition membership
     const { data: membership } = await supabase
@@ -81,12 +76,30 @@ serve(async (req) => {
       });
     }
 
+    // If team_id provided, verify user is a member of that team
+    if (team_id) {
+      const { data: teamMember } = await supabase
+        .from("team_members")
+        .select("id")
+        .eq("profile_id", userId)
+        .eq("team_id", team_id)
+        .limit(1);
+
+      if (!teamMember || teamMember.length === 0) {
+        return new Response(JSON.stringify({ success: false, error: "Du är inte med i detta lag" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
     const { data: message, error } = await supabase
       .from("competition_messages")
       .insert({
         competition_id,
         profile_id: userId,
         body: body.trim(),
+        ...(team_id ? { team_id } : {}),
       })
       .select()
       .single();
