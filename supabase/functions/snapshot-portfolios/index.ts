@@ -36,6 +36,9 @@ serve(async (req) => {
       });
     }
 
+    // Accrue daily savings interest before taking snapshots
+    await supabase.rpc("accrue_savings_interest", { _today: today });
+
     let totalSnapshots = 0;
 
     for (const comp of competitions) {
@@ -47,8 +50,20 @@ serve(async (req) => {
 
       if (!compTeams) continue;
 
-      // Get holdings for all teams
       const teamIds = compTeams.map((ct) => ct.team_id);
+
+      // Get savings balances
+      const { data: savingsData } = await supabase
+        .from("savings_accounts")
+        .select("team_id, balance")
+        .eq("competition_id", comp.id)
+        .in("team_id", teamIds);
+      const savingsMap: Record<string, number> = {};
+      for (const s of savingsData || []) {
+        savingsMap[s.team_id] = Number(s.balance);
+      }
+
+      // Get holdings for all teams
       const { data: allHoldings } = await supabase
         .from("team_holdings")
         .select("*")
@@ -96,8 +111,9 @@ serve(async (req) => {
           shortLiabilities += Number(s.shares) * priceSek;
         }
 
+        const savingsBalance = savingsMap[ct.team_id] ?? 0;
         // margin_reserved is NOT separate — it's already in cash_balance_sek
-        const totalValue = cash + holdingsValue - shortLiabilities;
+        const totalValue = cash + holdingsValue - shortLiabilities + savingsBalance;
 
         await supabase.from("portfolio_snapshots").upsert(
           {

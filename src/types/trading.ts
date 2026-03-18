@@ -71,6 +71,7 @@ export interface Portfolio {
   recent_trades: Trade[];
   short_positions?: ShortPosition[];
   margin_reserved?: number;
+  savings_balance?: number;
 }
 
 export interface LeaderboardEntry {

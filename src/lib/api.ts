@@ -95,7 +95,7 @@ export async function getPortfolio(
     const STALE_MS = 15 * 60 * 1000;
 
     // All queries in parallel — direct Supabase, no edge function
-    const [ctRes, holdingsRes, shortsRes, tradesRes, compRes] = await Promise.all([
+    const [ctRes, holdingsRes, shortsRes, tradesRes, compRes, savingsRes] = await Promise.all([
       supabase
         .from("competition_teams")
         .select("cash_balance_sek, margin_reserved_sek")
@@ -125,6 +125,12 @@ export async function getPortfolio(
         .select("end_date")
         .eq("id", competitionId)
         .single(),
+      supabase
+        .from("savings_accounts")
+        .select("balance")
+        .eq("competition_id", competitionId)
+        .eq("team_id", teamId)
+        .maybeSingle(),
     ]);
 
     const today = new Date().toISOString().split("T")[0];
@@ -209,7 +215,8 @@ export async function getPortfolio(
       });
     }
 
-    const totalValue = cash + holdingsValue - shortLiabilities;
+    const savingsBalance = savingsRes.data ? Number((savingsRes.data as any).balance) : 0;
+    const totalValue = cash + holdingsValue - shortLiabilities + savingsBalance;
 
     // Fire-and-forget: call edge function in background for side effects
     // (snapshot upsert requires service role, stale price refresh triggers Yahoo API)
@@ -231,6 +238,7 @@ export async function getPortfolio(
       recent_trades: recentTrades,
       short_positions: enrichedShorts,
       margin_reserved: marginReserved,
+      savings_balance: savingsBalance,
     };
   } catch (err) {
     console.error("getPortfolio error:", err);
@@ -440,6 +448,27 @@ export async function getAchievements(profileId?: string): Promise<{
     return await res.json();
   } catch {
     return { achievements: [], unlocked: [] };
+  }
+}
+
+// --- Savings Account ---
+
+export async function savingsTransaction(params: {
+  competition_id: string;
+  team_id: string;
+  action: "deposit" | "withdraw";
+  amount: number;
+}): Promise<{ success: boolean; error?: string; new_cash_balance?: number; new_savings_balance?: number }> {
+  try {
+    const headers = await getAuthHeaders();
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/savings-account`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(params),
+    });
+    return await res.json();
+  } catch {
+    return { success: false, error: "Nätverksfel" };
   }
 }
 

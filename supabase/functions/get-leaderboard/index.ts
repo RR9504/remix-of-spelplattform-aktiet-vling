@@ -94,6 +94,17 @@ serve(async (req) => {
 
     const teamIds = compTeams.map((ct) => ct.team_id);
 
+    // Get savings balances
+    const { data: savingsData } = await supabase
+      .from("savings_accounts")
+      .select("team_id, balance")
+      .eq("competition_id", competitionId)
+      .in("team_id", teamIds);
+    const savingsMap: Record<string, number> = {};
+    for (const s of savingsData || []) {
+      savingsMap[s.team_id] = Number(s.balance);
+    }
+
     // Get team info
     const { data: teams } = await supabase
       .from("teams")
@@ -158,9 +169,9 @@ serve(async (req) => {
         shortLiabilities += Number(s.shares) * priceSek;
       }
 
-      // total_value = cash + long_holdings - short_liabilities
-      // margin_reserved is NOT separate money — it's already included in cash_balance_sek
-      const totalValue = cash + holdingsValue - shortLiabilities;
+      const savingsBalance = savingsMap[ct.team_id] ?? 0;
+      // total_value = cash + long_holdings - short_liabilities + savings
+      const totalValue = cash + holdingsValue - shortLiabilities + savingsBalance;
       const returnAmount = totalValue - startCapital;
       const returnPercent = startCapital > 0 ? (returnAmount / startCapital) * 100 : 0;
 

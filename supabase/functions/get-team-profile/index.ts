@@ -159,6 +159,15 @@ serve(async (req) => {
         0
       );
 
+      // Get savings balance
+      const { data: savingsRow } = await supabase
+        .from("savings_accounts")
+        .select("balance")
+        .eq("competition_id", competitionId)
+        .eq("team_id", teamId)
+        .maybeSingle();
+      const savingsBalance = savingsRow ? Number(savingsRow.balance) : 0;
+
       if (compTeam) {
         const holdingsValue = holdings.reduce(
           (sum: number, h: any) => sum + (h.market_value_sek ?? 0),
@@ -168,7 +177,7 @@ serve(async (req) => {
         // cash_balance_sek already has order reservations deducted,
         // so add them back to get real total value
         const cashBalance = Number(compTeam.cash_balance_sek);
-        const totalValue = cashBalance + orderReserved + holdingsValue + shortMargin;
+        const totalValue = cashBalance + orderReserved + holdingsValue + shortMargin + savingsBalance;
         const startCapital = comp?.initial_balance ?? 0;
         const returnAmount = totalValue - startCapital;
         const returnPercent = startCapital > 0 ? (returnAmount / startCapital) * 100 : 0;
@@ -178,6 +187,7 @@ serve(async (req) => {
           order_reserved: orderReserved,
           holdings_value: holdingsValue,
           margin_reserved: shortMargin,
+          savings_balance: savingsBalance,
           total_value: totalValue,
           start_capital: startCapital,
           return_amount: returnAmount,

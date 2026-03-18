@@ -3,6 +3,7 @@ import { Navbar } from "@/components/Navbar";
 import { StockSearch } from "@/components/StockSearch";
 import { MarketStatus } from "@/components/MarketStatus";
 import { NoCompetitionState } from "@/components/NoCompetitionState";
+import { SavingsAccountCard } from "@/components/SavingsAccountCard";
 import { useCompetition } from "@/contexts/CompetitionContext";
 import { formatSEK } from "@/lib/mockData";
 import { TrendingUp, TrendingDown, ChevronDown, ChevronUp } from "lucide-react";
@@ -52,6 +53,12 @@ const Trade = () => {
           <NoCompetitionState />
         ) : (
           <>
+            <SavingsAccountCard
+              competitionId={activeCompetition.id}
+              teamId={activeTeam.id}
+              cashBalance={cashBalance ?? 0}
+            />
+
             <StockSearch initialQuery={searchQuery} />
 
             <button
