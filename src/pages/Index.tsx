@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { Loader2, HelpCircle } from "lucide-react";
+import { Loader2, HelpCircle, Landmark } from "lucide-react";
 import { Navbar } from "@/components/Navbar";
 import { PortfolioChart } from "@/components/PortfolioChart";
 import { HoldingsTable } from "@/components/HoldingsTable";
@@ -114,6 +114,7 @@ const Index = () => {
   const positions = portfolio?.holdings?.length ?? 0;
   const marginReserved = portfolio?.margin_reserved ?? 0;
   const hasShorts = (portfolio?.short_positions?.length ?? 0) > 0;
+  const savingsBalance = portfolio?.savings_balance ?? 0;
 
   return (
     <div className="min-h-screen bg-background">
@@ -186,7 +187,7 @@ const Index = () => {
                 <span>Uppdaterar...</span>
               </div>
             )}
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
               <div className="rounded-xl border bg-card p-3 sm:p-5">
                 <p className="text-sm text-muted-foreground">
                   {hasShorts ? "Tillgängligt saldo" : "Likvida medel"}
@@ -204,6 +205,15 @@ const Index = () => {
                 <p className="text-sm text-muted-foreground">Aktievärde</p>
                 <p className="text-lg sm:text-xl font-bold font-mono">{formatSEK(holdingsValue)}</p>
               </div>
+              {savingsBalance > 0 && (
+                <div className="rounded-xl border bg-card p-3 sm:p-5">
+                  <p className="text-sm text-muted-foreground flex items-center gap-1">
+                    <Landmark className="h-3.5 w-3.5" />
+                    Sparkonto
+                  </p>
+                  <p className="text-lg sm:text-xl font-bold font-mono">{formatSEK(savingsBalance)}</p>
+                </div>
+              )}
               <div className="rounded-xl border bg-card p-3 sm:p-5">
                 <p className="text-sm text-muted-foreground">Portföljvärde</p>
                 <p className="text-lg sm:text-xl font-bold font-mono">{formatSEK(totalValue)}</p>
@@ -229,6 +239,7 @@ const Index = () => {
                   holdings={portfolio?.holdings ?? []}
                   shortPositions={portfolio?.short_positions}
                   cash={cash}
+                  savingsBalance={savingsBalance}
                 />
               </TabsContent>
             </Tabs>

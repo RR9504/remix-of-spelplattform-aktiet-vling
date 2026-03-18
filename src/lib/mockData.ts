@@ -89,10 +89,11 @@ export function isMarketOpen(market: 'SE' | 'US' | 'CRYPTO'): boolean {
   if (market === 'CRYPTO') return true;
 
   const now = new Date();
-  const hours = now.getHours();
-  const minutes = now.getMinutes();
+  const stockholm = new Date(now.toLocaleString("en-US", { timeZone: "Europe/Stockholm" }));
+  const hours = stockholm.getHours();
+  const minutes = stockholm.getMinutes();
   const time = hours * 60 + minutes;
-  const day = now.getDay();
+  const day = stockholm.getDay();
 
   if (day === 0 || day === 6) return false;
 

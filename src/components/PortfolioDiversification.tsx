@@ -1,4 +1,4 @@
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { AlertTriangle } from "lucide-react";
 import { formatSEK } from "@/lib/mockData";
 import type { Holding, ShortPosition } from "@/types/trading";
@@ -7,6 +7,7 @@ interface PortfolioDiversificationProps {
   holdings: Holding[];
   shortPositions?: ShortPosition[];
   cash?: number;
+  savingsBalance?: number;
 }
 
 const COLORS = [
@@ -22,8 +23,9 @@ const COLORS = [
 
 const SHORT_COLOR = "hsl(0, 60%, 44%)";
 const CASH_COLOR = "hsl(222, 15%, 40%)";
+const SAVINGS_COLOR = "hsl(174, 50%, 35%)";
 
-export function PortfolioDiversification({ holdings, shortPositions, cash }: PortfolioDiversificationProps) {
+export function PortfolioDiversification({ holdings, shortPositions, cash, savingsBalance }: PortfolioDiversificationProps) {
   const hasHoldings = holdings.length > 0;
   const hasShorts = shortPositions && shortPositions.length > 0;
 
@@ -60,7 +62,10 @@ export function PortfolioDiversification({ holdings, shortPositions, cash }: Por
   // Cash
   const cashEntry = cash && cash > 0 ? [{ name: "Likvida medel", value: cash, type: "cash" as const }] : [];
 
-  const allData = [...longData, ...shortData, ...cashEntry];
+  // Savings
+  const savingsEntry = savingsBalance && savingsBalance > 0 ? [{ name: "Sparkonto", value: savingsBalance, type: "savings" as const }] : [];
+
+  const allData = [...longData, ...shortData, ...cashEntry, ...savingsEntry];
   const totalPortfolioValue = allData.reduce((sum, d) => sum + d.value, 0);
 
   const dataWithPercent = allData.map((d) => ({
@@ -76,12 +81,13 @@ export function PortfolioDiversification({ holdings, shortPositions, cash }: Por
   const getColor = (entry: typeof dataWithPercent[number], index: number) => {
     if (entry.type === "short") return SHORT_COLOR;
     if (entry.type === "cash") return CASH_COLOR;
+    if (entry.type === "savings") return SAVINGS_COLOR;
     const longIndex = longData.findIndex((d) => d.name === entry.name);
     return COLORS[longIndex % COLORS.length];
   };
 
   return (
-    <div className="rounded-xl border bg-card p-6">
+    <div className="rounded-xl border bg-card p-4 sm:p-6">
       <h2 className="text-lg font-semibold mb-4">Portföljfördelning</h2>
 
       {concentrated && (
@@ -93,7 +99,7 @@ export function PortfolioDiversification({ holdings, shortPositions, cash }: Por
         </div>
       )}
 
-      <div className="h-[300px] w-full">
+      <div className="h-[240px] sm:h-[300px] w-full">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
@@ -118,14 +124,20 @@ export function PortfolioDiversification({ holdings, shortPositions, cash }: Por
                 fontSize: "13px",
               }}
             />
-            <Legend
-              formatter={(value: string) => {
-                const item = dataWithPercent.find((d) => d.name === value);
-                return `${value} (${item?.percent.toFixed(1)}%)`;
-              }}
-            />
+            {/* Custom compact legend rendered below */}
           </PieChart>
         </ResponsiveContainer>
+      </div>
+
+      {/* Compact custom legend */}
+      <div className="mt-2 flex flex-wrap justify-center gap-x-3 gap-y-1">
+        {dataWithPercent.map((entry, i) => (
+          <div key={entry.name} className="flex items-center gap-1 text-xs">
+            <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: getColor(entry, i) }} />
+            <span className="text-muted-foreground truncate max-w-[100px]">{entry.name}</span>
+            <span className="font-mono text-muted-foreground">{entry.percent.toFixed(1)}%</span>
+          </div>
+        ))}
       </div>
 
       <div className="mt-4 flex flex-wrap justify-center gap-x-6 gap-y-1 text-sm text-muted-foreground">
@@ -140,6 +152,11 @@ export function PortfolioDiversification({ holdings, shortPositions, cash }: Por
         {cash !== undefined && cash > 0 && (
           <div>
             Likvida: <span className="font-mono font-semibold text-foreground">{formatSEK(cash)}</span>
+          </div>
+        )}
+        {savingsBalance !== undefined && savingsBalance > 0 && (
+          <div>
+            Sparkonto: <span className="font-mono font-semibold text-foreground">{formatSEK(savingsBalance)}</span>
           </div>
         )}
       </div>
