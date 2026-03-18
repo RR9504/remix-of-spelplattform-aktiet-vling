@@ -247,6 +247,7 @@ const Index = () => {
               holdings={portfolio?.holdings ?? []}
               shortPositions={portfolio?.short_positions}
               totalValue={totalValue}
+              savingsBalance={savingsBalance}
             />
             <PendingOrdersList />
             <CompetitionChat />
