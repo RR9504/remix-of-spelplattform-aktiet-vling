@@ -3,6 +3,7 @@ export interface StockSearchResult {
   name: string;
   exchange: string;
   currency: string;
+  type?: string;
 }
 
 export interface StockPrice {

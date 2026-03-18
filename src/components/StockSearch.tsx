@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, Loader2, Info } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -7,6 +7,25 @@ import type { StockSearchResult, StockPrice } from "@/types/trading";
 import { TradeDialog } from "./TradeDialog";
 import { WatchlistButton } from "./WatchlistButton";
 
+type FilterType = "ALL" | "EQUITY" | "ETF" | "CRYPTOCURRENCY" | "CERTIFICATE";
+
+const FILTER_LABELS: Record<FilterType, string> = {
+  ALL: "Alla",
+  EQUITY: "Aktier",
+  ETF: "ETF:er",
+  CRYPTOCURRENCY: "Krypto",
+  CERTIFICATE: "Certifikat",
+};
+
+function classifyResult(stock: StockSearchResult): FilterType {
+  if (stock.type === "CERTIFICATE") return "CERTIFICATE";
+  if (stock.type === "ETF") return "ETF";
+  if (stock.type === "CRYPTOCURRENCY") return "CRYPTOCURRENCY";
+  // Heuristic: Bull/Bear tickers on Stockholm are certificates
+  if (/^(BULL|BEAR)-/i.test(stock.ticker)) return "CERTIFICATE";
+  return "EQUITY";
+}
+
 export function StockSearch({ initialQuery }: { initialQuery?: string } = {}) {
   const navigate = useNavigate();
   const [query, setQuery] = useState(initialQuery || "");
@@ -14,6 +33,7 @@ export function StockSearch({ initialQuery }: { initialQuery?: string } = {}) {
   const [loading, setLoading] = useState(false);
   const [selectedStock, setSelectedStock] = useState<(StockSearchResult & { priceData?: StockPrice }) | null>(null);
   const [fetchingPrice, setFetchingPrice] = useState(false);
+  const [filter, setFilter] = useState<FilterType>("ALL");
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
   // Update query when initialQuery changes (e.g. from cert button click)
@@ -41,6 +61,23 @@ export function StockSearch({ initialQuery }: { initialQuery?: string } = {}) {
     };
   }, [query]);
 
+  // Compute which filter types are available in current results
+  const availableTypes = useMemo(() => {
+    const types = new Set<FilterType>();
+    results.forEach((r) => types.add(classifyResult(r)));
+    return types;
+  }, [results]);
+
+  const filteredResults = useMemo(() => {
+    if (filter === "ALL") return results;
+    return results.filter((r) => classifyResult(r) === filter);
+  }, [results, filter]);
+
+  // Reset filter when results change
+  useEffect(() => {
+    setFilter("ALL");
+  }, [results]);
+
   const handleSelect = async (stock: StockSearchResult) => {
     setFetchingPrice(true);
     const priceData = await fetchStockPrice(stock.ticker);
@@ -62,11 +99,38 @@ export function StockSearch({ initialQuery }: { initialQuery?: string } = {}) {
           <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />
         )}
       </div>
+      {results.length > 1 && availableTypes.size > 1 && (
+        <div className="flex flex-wrap gap-1.5">
+          {(Object.keys(FILTER_LABELS) as FilterType[])
+            .filter((t) => t === "ALL" || availableTypes.has(t))
+            .map((t) => (
+              <button
+                key={t}
+                onClick={() => setFilter(t)}
+                className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
+                  filter === t
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-card text-muted-foreground border-border hover:bg-muted"
+                }`}
+              >
+                {FILTER_LABELS[t]}
+                {t !== "ALL" && (
+                  <span className="ml-1 opacity-60">
+                    {results.filter((r) => classifyResult(r) === t).length}
+                  </span>
+                )}
+              </button>
+            ))}
+        </div>
+      )}
       <div className="grid gap-2">
         {!loading && query.length > 0 && results.length === 0 && (
           <p className="text-sm text-muted-foreground text-center py-4">Inga resultat hittades</p>
         )}
-        {results.map((stock) => (
+        {!loading && query.length > 0 && results.length > 0 && filteredResults.length === 0 && (
+          <p className="text-sm text-muted-foreground text-center py-4">Inga resultat i denna kategori</p>
+        )}
+        {filteredResults.map((stock) => (
           <button
             key={stock.ticker}
             onClick={() => handleSelect(stock)}
@@ -80,7 +144,16 @@ export function StockSearch({ initialQuery }: { initialQuery?: string } = {}) {
                 stock.exchange?.includes("Stockholm") || stock.ticker.endsWith(".ST") ? "🇸🇪" : "🇺🇸"
               }</span>
               <div>
-                <p className="font-mono font-semibold text-sm">{stock.ticker}</p>
+                <div className="flex items-center gap-1.5">
+                  <p className="font-mono font-semibold text-sm">{stock.ticker}</p>
+                  {classifyResult(stock) !== "EQUITY" && (
+                    <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                      {classifyResult(stock) === "ETF" ? "ETF" :
+                       classifyResult(stock) === "CRYPTOCURRENCY" ? "Krypto" :
+                       classifyResult(stock) === "CERTIFICATE" ? "Certifikat" : ""}
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-muted-foreground">{stock.name}</p>
               </div>
             </div>

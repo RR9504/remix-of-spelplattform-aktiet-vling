@@ -6,6 +6,7 @@ interface SearchResult {
   name: string;
   exchange: string;
   currency: string;
+  type: string;
 }
 
 // Check if a ticker exists and has price data on Yahoo Finance
@@ -144,6 +145,7 @@ serve(async (req) => {
               name: v.name || batch[j],
               exchange: "Stockholm",
               currency: "SEK",
+              type: "CERTIFICATE",
             });
           }
         }
@@ -163,6 +165,7 @@ serve(async (req) => {
               name: q.shortname || q.longname || q.symbol,
               exchange: q.exchDisp || q.exchange || "",
               currency: q.currency || "SEK",
+              type: q.quoteType || "EQUITY",
             }));
 
           // Add Yahoo results that aren't already in our list
