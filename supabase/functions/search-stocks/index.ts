@@ -206,6 +206,7 @@ serve(async (req) => {
         name: q.shortname || q.longname || q.symbol,
         exchange: q.exchDisp || q.exchange || "",
         currency: q.currency || "SEK",
+        type: q.quoteType || "EQUITY",
       }));
 
     return new Response(JSON.stringify(quotes), {
