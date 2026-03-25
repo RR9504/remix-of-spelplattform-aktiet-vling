@@ -104,7 +104,7 @@ export interface CompetitionTeam {
 
 // --- Pending Orders (Limit, SL, TP) ---
 
-export type OrderType = "limit_buy" | "limit_sell" | "stop_loss" | "take_profit";
+export type OrderType = "limit_buy" | "limit_sell" | "stop_loss" | "take_profit" | "market_buy" | "market_sell" | "market_short" | "market_cover";
 export type OrderStatus = "pending" | "filled" | "cancelled" | "expired";
 
 export interface PendingOrder {
@@ -115,11 +115,12 @@ export interface PendingOrder {
   ticker: string;
   stock_name: string;
   order_type: OrderType;
-  target_price: number;
+  target_price: number | null;
   shares: number;
   currency: string;
   status: OrderStatus;
   reference_avg_cost_sek: number | null;
+  for_short: boolean;
   filled_at: string | null;
   filled_trade_id: string | null;
   cancelled_at: string | null;
@@ -133,9 +134,10 @@ export interface PlaceOrderRequest {
   ticker: string;
   stock_name: string;
   order_type: OrderType;
-  target_price: number;
+  target_price?: number;
   shares: number;
   currency?: string;
+  for_short?: boolean;
 }
 
 export interface PlaceOrderResult {

@@ -3,8 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, RefreshCw } from "lucide-react";
+import { Loader2, RefreshCw, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { executeTrade, fetchStockPrice, placeOrder } from "@/lib/api";
 import { useCompetition } from "@/contexts/CompetitionContext";
@@ -17,13 +16,6 @@ interface TradeDialogProps {
   priceData: StockPrice | null;
   onClose: () => void;
 }
-
-const ORDER_TYPE_LABELS: Record<OrderType, string> = {
-  limit_buy: "Limitköp",
-  limit_sell: "Limitsälj",
-  stop_loss: "Stop-Loss",
-  take_profit: "Take-Profit",
-};
 
 export function TradeDialog({ stock, priceData: initialPriceData, onClose }: TradeDialogProps) {
   const { activeCompetition, activeTeam, cashBalance, refresh } = useCompetition();
@@ -38,7 +30,6 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
   const isSETicker = isSE;
   const assetMarket: "SE" | "US" | "CRYPTO" = isCrypto ? "CRYPTO" : (isSE ? "SE" : "US");
   const marketOpen = isMarketOpen(assetMarket);
-  const assetLabel = isCrypto ? "enheter" : isCommodity ? "kontrakt" : "aktier";
   const marketBlocked = (mktFilter === "SE" && !isSETicker) || (mktFilter === "US" && (isSETicker || isCrypto || isCommodity));
 
   const [shares, setShares] = useState("");
@@ -47,12 +38,6 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
   const [priceData, setPriceData] = useState<StockPrice | null>(initialPriceData);
   const [fetchingPrice, setFetchingPrice] = useState(false);
 
-  // Limit order state
-  const [orderType, setOrderType] = useState<OrderType>("limit_buy");
-  const [targetPrice, setTargetPrice] = useState("");
-  const [limitShares, setLimitShares] = useState("");
-  const [placingOrder, setPlacingOrder] = useState(false);
-
   // Short selling state
   const [shortSide, setShortSide] = useState<"short" | "cover">("short");
 
@@ -60,6 +45,7 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
   const [currentShares, setCurrentShares] = useState<number>(0);
   const [avgCost, setAvgCost] = useState<number>(0);
   const [shortShares, setShortShares] = useState<number>(0);
+  const [shortEntryPrice, setShortEntryPrice] = useState<number>(0);
 
   useEffect(() => {
     if (!priceData) {
@@ -83,13 +69,15 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
       });
     supabase
       .from("short_positions")
-      .select("shares")
+      .select("shares, entry_price_sek")
       .eq("competition_id", activeCompetition.id)
       .eq("team_id", activeTeam.id)
       .eq("ticker", stock.ticker)
       .is("closed_at", null)
       .then(({ data }) => {
-        setShortShares((data || []).reduce((sum, s) => sum + Number(s.shares), 0));
+        const positions = data || [];
+        setShortShares(positions.reduce((sum, s) => sum + Number(s.shares), 0));
+        setShortEntryPrice(positions.length > 0 ? Number(positions[0].entry_price_sek) : 0);
       });
   }, [activeCompetition?.id, activeTeam?.id, stock.ticker]);
 
@@ -110,6 +98,36 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
     ? Math.floor(cashBalance / (price * exchangeRate))
     : 0;
 
+  // Place a market order (queued for next open)
+  const placeMarketOrder = async (orderType: OrderType) => {
+    if (!activeCompetition || !activeTeam) return;
+    setLoading(true);
+    const result = await placeOrder({
+      competition_id: activeCompetition.id,
+      team_id: activeTeam.id,
+      ticker: stock.ticker,
+      stock_name: priceData?.stock_name || stock.name,
+      order_type: orderType,
+      shares: qty,
+      currency: currency,
+    });
+
+    if (result.success) {
+      const labels: Record<string, string> = {
+        market_buy: "Köporder",
+        market_sell: "Säljorder",
+        market_short: "Blankningsorder",
+        market_cover: "Täckningsorder",
+      };
+      toast.success(`${labels[orderType]} skapad för ${qty} st ${stock.ticker} — utförs vid börsöppning`);
+      await refresh();
+      onClose();
+    } else {
+      toast.error(result.error || "Kunde inte skapa order");
+    }
+    setLoading(false);
+  };
+
   const handleTrade = async () => {
     if (!activeCompetition || !activeTeam) {
       toast.error("Välj en aktiv tävling och ett lag först");
@@ -117,6 +135,12 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
     }
     if (qty <= 0) {
       toast.error("Ange antal");
+      return;
+    }
+
+    // Market closed → place market order instead
+    if (!marketOpen) {
+      await placeMarketOrder(side === "buy" ? "market_buy" : "market_sell");
       return;
     }
 
@@ -151,6 +175,12 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
       return;
     }
 
+    // Market closed → place market order instead
+    if (!marketOpen) {
+      await placeMarketOrder(shortSide === "short" ? "market_short" : "market_cover");
+      return;
+    }
+
     setLoading(true);
     const result = await executeTrade({
       competition_id: activeCompetition.id,
@@ -172,38 +202,28 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
     setLoading(false);
   };
 
-  const handlePlaceOrder = async () => {
-    if (!activeCompetition || !activeTeam) {
-      toast.error("Välj en aktiv tävling och ett lag först");
-      return;
-    }
-    const lQty = parseInt(limitShares) || 0;
-    const lPrice = parseFloat(targetPrice) || 0;
-    if (lQty <= 0 || lPrice <= 0) {
-      toast.error("Ange riktkurs och antal");
-      return;
-    }
+  // Place SL/TP order (works for both longs and shorts)
+  const handlePlaceProtection = async (type: "stop_loss" | "take_profit", targetPriceSek: number, protectShares: number, forShort: boolean) => {
+    if (!activeCompetition || !activeTeam) return;
 
-    setPlacingOrder(true);
     const result = await placeOrder({
       competition_id: activeCompetition.id,
       team_id: activeTeam.id,
       ticker: stock.ticker,
       stock_name: priceData?.stock_name || stock.name,
-      order_type: orderType,
-      target_price: lPrice,
-      shares: lQty,
+      order_type: type,
+      target_price: targetPriceSek,
+      shares: protectShares,
       currency: currency,
+      for_short: forShort,
     });
 
     if (result.success) {
-      toast.success(`${ORDER_TYPE_LABELS[orderType]} skapad för ${stock.ticker}`);
+      toast.success(`${type === "stop_loss" ? "Stop-Loss" : "Take-Profit"} satt för ${stock.ticker}`);
       await refresh();
-      onClose();
     } else {
-      toast.error(result.error || "Kunde inte skapa order");
+      toast.error(result.error || "Kunde inte skapa skyddsordern");
     }
-    setPlacingOrder(false);
   };
 
   const renderPriceInfo = () => (
@@ -239,6 +259,21 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
     </div>
   );
 
+  const renderMarketClosedBanner = () => {
+    if (marketOpen) return null;
+    return (
+      <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-3 text-sm flex items-start gap-2">
+        <Clock className="h-4 w-4 text-yellow-600 mt-0.5 shrink-0" />
+        <div>
+          <p className="font-medium text-yellow-600">Marknaden är stängd</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Din order läggs och utförs automatiskt vid nästa börsöppning.
+          </p>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <Dialog open onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
@@ -268,24 +303,19 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
               </p>
             </div>
           ) : (
-            <Tabs defaultValue={marketOpen ? "direct" : "limit"}>
+            <Tabs defaultValue="direct">
               <TabsList className="w-full">
-                <TabsTrigger value="direct" className="flex-1 text-xs sm:text-sm">Direkt</TabsTrigger>
-                <TabsTrigger value="limit" className="flex-1 text-xs sm:text-sm">Limitorder</TabsTrigger>
+                <TabsTrigger value="direct" className="flex-1 text-xs sm:text-sm">
+                  {marketOpen ? "Direkt" : "Köp / Sälj"}
+                </TabsTrigger>
                 {shortsAllowed && (
                   <TabsTrigger value="short" className="flex-1 text-xs sm:text-sm">Blankning</TabsTrigger>
                 )}
               </TabsList>
 
               <TabsContent value="direct" className="space-y-4 mt-4">
-                {!marketOpen && (
-                  <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-3 text-sm">
-                    <p className="font-medium text-yellow-600">Marknaden är stängd</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Direkthandel är inte tillgängligt just nu. Använd <strong>Limitorder</strong> för att lägga en order som exekveras vid nästa börsöppning.
-                    </p>
-                  </div>
-                )}
+                {renderMarketClosedBanner()}
+
                 <div className="flex gap-2">
                   <Button
                     variant={side === "buy" ? "default" : "outline"}
@@ -376,7 +406,9 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
                 {qty > 0 && priceData && (
                   <div className="rounded-lg bg-surface p-3">
                     <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Total kostnad</span>
+                      <span className="text-muted-foreground">
+                        {!marketOpen ? "Uppskattat värde" : "Total kostnad"}
+                      </span>
                       <span className="font-mono font-semibold">{formatSEK(costSEK)}</span>
                     </div>
                     {currency !== "SEK" && (
@@ -387,125 +419,35 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
                         </span>
                       </div>
                     )}
+                    {!marketOpen && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Slutpriset bestäms vid börsöppning
+                      </p>
+                    )}
                   </div>
                 )}
 
                 <Button
                   onClick={handleTrade}
                   className="w-full"
-                  disabled={!priceData || qty <= 0 || loading || fetchingPrice || !marketOpen}
+                  disabled={!priceData || qty <= 0 || loading || fetchingPrice}
                 >
                   {loading ? (
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : !marketOpen ? (
+                    <Clock className="h-4 w-4 mr-2" />
                   ) : null}
-                  {!marketOpen
-                    ? "Marknaden stängd — använd limitorder"
-                    : loading
+                  {loading
                     ? "Genomför..."
+                    : !marketOpen
+                    ? `Lägg ${side === "buy" ? "köp" : "sälj"}order`
                     : `${side === "buy" ? "Köp" : "Sälj"} ${stock.ticker}`}
                 </Button>
               </TabsContent>
 
-              <TabsContent value="limit" className="space-y-4 mt-4">
-                <div>
-                  <label className="text-sm text-muted-foreground">Ordertyp</label>
-                  <Select value={orderType} onValueChange={(v) => setOrderType(v as OrderType)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="limit_buy">Limitköp</SelectItem>
-                      <SelectItem value="limit_sell">Limitsälj</SelectItem>
-                      <SelectItem value="stop_loss">Stop-Loss</SelectItem>
-                      <SelectItem value="take_profit">Take-Profit</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {renderPriceInfo()}
-
-                <div>
-                  <label className="text-sm text-muted-foreground">
-                    Riktkurs (SEK)
-                  </label>
-                  <Input
-                    type="number"
-                    min={0.01}
-                    step="0.01"
-                    placeholder="0.00"
-                    value={targetPrice}
-                    onChange={(e) => setTargetPrice(e.target.value)}
-                    className="font-mono"
-                  />
-                  {priceData && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Nuvarande kurs i SEK: {formatSEK(priceData.price_sek)}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="text-sm text-muted-foreground">Antal</label>
-                  <Input
-                    type="number"
-                    min={1}
-                    placeholder="0"
-                    value={limitShares}
-                    onChange={(e) => setLimitShares(e.target.value)}
-                    className="font-mono"
-                  />
-                </div>
-
-                {(parseFloat(targetPrice) || 0) > 0 && (parseInt(limitShares) || 0) > 0 && (
-                  <div className="rounded-lg bg-surface p-3 space-y-1">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Ordertyp</span>
-                      <span className="font-semibold">{ORDER_TYPE_LABELS[orderType]}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Riktkurs</span>
-                      <span className="font-mono">{formatSEK(parseFloat(targetPrice))}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Antal</span>
-                      <span className="font-mono">{parseInt(limitShares)} st</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Uppskattat värde</span>
-                      <span className="font-mono font-semibold">
-                        {formatSEK(parseFloat(targetPrice) * parseInt(limitShares))}
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                <Button
-                  onClick={handlePlaceOrder}
-                  className="w-full"
-                  disabled={
-                    !priceData ||
-                    (parseInt(limitShares) || 0) <= 0 ||
-                    (parseFloat(targetPrice) || 0) <= 0 ||
-                    placingOrder ||
-                    fetchingPrice
-                  }
-                >
-                  {placingOrder ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  ) : null}
-                  {placingOrder ? "Skapar order..." : "Lägg order"}
-                </Button>
-              </TabsContent>
-
               <TabsContent value="short" className="space-y-4 mt-4">
-                {!marketOpen && (
-                  <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-3 text-sm">
-                    <p className="font-medium text-yellow-600">Marknaden är stängd</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Blankning kräver att börsen är öppen. Använd <strong>Limitorder</strong> istället.
-                    </p>
-                  </div>
-                )}
+                {renderMarketClosedBanner()}
+
                 <div className="flex gap-2">
                   <Button
                     variant={shortSide === "short" ? "default" : "outline"}
@@ -526,11 +468,22 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
                 {renderPriceInfo()}
 
                 {shortShares > 0 && (
-                  <div className="rounded-lg border bg-surface p-3">
+                  <div className="rounded-lg border bg-surface p-3 space-y-1">
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Öppen blankningsposition</span>
                       <span className="font-mono font-semibold">{shortShares.toLocaleString("sv-SE")} st</span>
                     </div>
+                    {shortEntryPrice > 0 && priceData && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">P&L</span>
+                        <span className={`font-mono font-semibold ${
+                          shortEntryPrice > priceData.price_sek ? "text-gain" : "text-loss"
+                        }`}>
+                          {shortEntryPrice > priceData.price_sek ? "+" : ""}
+                          {formatSEK((shortEntryPrice - priceData.price_sek) * shortShares)}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -572,21 +525,28 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
                       <span className="text-muted-foreground">Marginal (150%)</span>
                       <span className="font-mono font-semibold">{formatSEK(costSEK * 1.5)}</span>
                     </div>
+                    {!marketOpen && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Slutpriset bestäms vid börsöppning
+                      </p>
+                    )}
                   </div>
                 )}
 
                 <Button
                   onClick={handleShortTrade}
                   className="w-full"
-                  disabled={!priceData || qty <= 0 || loading || fetchingPrice || !marketOpen}
+                  disabled={!priceData || qty <= 0 || loading || fetchingPrice}
                 >
                   {loading ? (
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : !marketOpen ? (
+                    <Clock className="h-4 w-4 mr-2" />
                   ) : null}
-                  {!marketOpen
-                    ? "Marknaden stängd — använd limitorder"
-                    : loading
+                  {loading
                     ? "Genomför..."
+                    : !marketOpen
+                    ? `Lägg ${shortSide === "short" ? "blanknings" : "täcknings"}order`
                     : `${shortSide === "short" ? "Blanka" : "Täck"} ${stock.ticker}`}
                 </Button>
               </TabsContent>

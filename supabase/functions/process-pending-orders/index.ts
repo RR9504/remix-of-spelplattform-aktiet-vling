@@ -64,11 +64,22 @@ serve(async (req) => {
       }
     }
 
+    const ORDER_TYPE_LABELS: Record<string, string> = {
+      limit_buy: "Limitköp",
+      limit_sell: "Limitsälj",
+      stop_loss: "Stop-Loss",
+      take_profit: "Take-Profit",
+      market_buy: "Marknadsköp",
+      market_sell: "Marknadssälj",
+      market_short: "Marknadsblanka",
+      market_cover: "Marknadstäck",
+    };
+
     for (const order of pendingOrders) {
       // Check expiration
       if (new Date(order.expires_at) < now) {
-        // Release reserved funds for limit_buy orders
-        if (order.order_type === "limit_buy" && Number(order.reserved_amount_sek) > 0) {
+        // Release reserved funds for buy/short orders
+        if (Number(order.reserved_amount_sek) > 0) {
           await supabase.rpc("release_order_funds", { _order_id: order.id });
         }
         await supabase
@@ -77,10 +88,7 @@ serve(async (req) => {
           .eq("id", order.id);
         expired++;
 
-        // Notify team about expired order
-        const typeLabel = order.order_type === "limit_buy" ? "Limitköp" :
-          order.order_type === "limit_sell" ? "Limitsälj" :
-          order.order_type === "stop_loss" ? "Stop-loss" : "Take-profit";
+        const typeLabel = ORDER_TYPE_LABELS[order.order_type] || order.order_type;
         try {
           await notifyTeamMembers(
             supabase,
@@ -101,20 +109,43 @@ serve(async (req) => {
 
       const currentPriceSek = priceInfo.price_sek;
       const targetPriceSek = order.target_price;
+      const isForShort = order.for_short === true;
       let shouldFill = false;
 
       switch (order.order_type) {
+        // Market orders: always fill immediately
+        case "market_buy":
+        case "market_sell":
+        case "market_short":
+        case "market_cover":
+          shouldFill = true;
+          break;
+
         case "limit_buy":
           shouldFill = currentPriceSek <= targetPriceSek;
           break;
         case "limit_sell":
           shouldFill = currentPriceSek >= targetPriceSek;
           break;
+
         case "stop_loss":
-          shouldFill = currentPriceSek <= targetPriceSek;
+          if (isForShort) {
+            // Short SL: price RISING = loss → trigger cover when price >= target
+            shouldFill = currentPriceSek >= targetPriceSek;
+          } else {
+            // Long SL: price FALLING = loss → trigger sell when price <= target
+            shouldFill = currentPriceSek <= targetPriceSek;
+          }
           break;
+
         case "take_profit":
-          shouldFill = currentPriceSek >= targetPriceSek;
+          if (isForShort) {
+            // Short TP: price FALLING = profit → trigger cover when price <= target
+            shouldFill = currentPriceSek <= targetPriceSek;
+          } else {
+            // Long TP: price RISING = profit → trigger sell when price >= target
+            shouldFill = currentPriceSek >= targetPriceSek;
+          }
           break;
       }
 
@@ -127,15 +158,23 @@ serve(async (req) => {
           _stock_name: priceInfo.stock_name,
         });
 
-        const typeLabel = order.order_type === "limit_buy" ? "Limitköp" :
-          order.order_type === "limit_sell" ? "Limitsälj" :
-          order.order_type === "stop_loss" ? "Stop-loss" : "Take-profit";
+        const typeLabel = ORDER_TYPE_LABELS[order.order_type] || order.order_type;
 
         if (!fillError && result?.success) {
           filled++;
-          // Notify team about filled order
           try {
-            const sideLabel = order.order_type === "limit_buy" ? "Köpt" : "Sålt";
+            const isShortAction = order.order_type === "market_short" ||
+              (isForShort && order.order_type === "stop_loss");
+            const isCoverAction = order.order_type === "market_cover" ||
+              (isForShort && order.order_type === "take_profit") ||
+              (isForShort && order.order_type === "stop_loss" && order.order_type !== "market_short");
+
+            let sideLabel: string;
+            if (order.order_type === "market_short") sideLabel = "Blankat";
+            else if (order.order_type === "market_cover" || isForShort) sideLabel = "Täckt";
+            else if (["limit_buy", "market_buy"].includes(order.order_type)) sideLabel = "Köpt";
+            else sideLabel = "Sålt";
+
             const totalSek = Math.round(order.shares * priceInfo.price_sek);
             await notifyTeamMembers(
               supabase,
@@ -150,7 +189,6 @@ serve(async (req) => {
           }
         } else {
           console.error(`Failed to fill order ${order.id}:`, fillError || result?.error);
-          // Notify team about failed order
           try {
             await notifyTeamMembers(
               supabase,

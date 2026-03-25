@@ -1,8 +1,14 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Landmark } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Landmark, Shield, Target, Loader2, X } from "lucide-react";
 import { formatSEK } from "@/lib/mockData";
+import { placeOrder } from "@/lib/api";
+import { useCompetition } from "@/contexts/CompetitionContext";
+import { toast } from "sonner";
 import type { Holding, ShortPosition } from "@/types/trading";
 
 interface HoldingsTableProps {
@@ -10,6 +16,121 @@ interface HoldingsTableProps {
   shortPositions?: ShortPosition[];
   totalValue?: number;
   savingsBalance?: number;
+}
+
+function ProtectionButtons({ ticker, stockName, shares, currentPriceSek, forShort, currency }: {
+  ticker: string;
+  stockName: string;
+  shares: number;
+  currentPriceSek?: number;
+  forShort: boolean;
+  currency: string;
+}) {
+  const { activeCompetition, activeTeam, refresh } = useCompetition();
+  const [showForm, setShowForm] = useState<"stop_loss" | "take_profit" | null>(null);
+  const [targetPrice, setTargetPrice] = useState("");
+  const [protectShares, setProtectShares] = useState(String(shares));
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!activeCompetition || !activeTeam || !showForm) return;
+    const tp = parseFloat(targetPrice);
+    const qty = parseInt(protectShares);
+    if (!tp || tp <= 0 || !qty || qty <= 0) {
+      toast.error("Ange giltigt pris och antal");
+      return;
+    }
+    if (qty > shares) {
+      toast.error(`Max ${shares} st`);
+      return;
+    }
+
+    setLoading(true);
+    const result = await placeOrder({
+      competition_id: activeCompetition.id,
+      team_id: activeTeam.id,
+      ticker,
+      stock_name: stockName,
+      order_type: showForm,
+      target_price: tp,
+      shares: qty,
+      currency,
+      for_short: forShort,
+    });
+
+    if (result.success) {
+      toast.success(`${showForm === "stop_loss" ? "Stop-Loss" : "Take-Profit"} satt för ${ticker}`);
+      setShowForm(null);
+      setTargetPrice("");
+      await refresh();
+    } else {
+      toast.error(result.error || "Kunde inte skapa order");
+    }
+    setLoading(false);
+  };
+
+  if (showForm) {
+    const label = showForm === "stop_loss" ? "Stop-Loss" : "Take-Profit";
+    const hint = forShort
+      ? (showForm === "stop_loss" ? "Täcks om kursen stiger över" : "Täcks om kursen sjunker under")
+      : (showForm === "stop_loss" ? "Säljs om kursen sjunker under" : "Säljs om kursen stiger över");
+
+    return (
+      <div className="mt-2 rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-medium">{label}</span>
+          <button onClick={() => setShowForm(null)} className="p-0.5 rounded hover:bg-muted">
+            <X className="h-3 w-3" />
+          </button>
+        </div>
+        <p className="text-xs text-muted-foreground">{hint} detta pris (SEK):</p>
+        <div className="flex gap-2">
+          <Input
+            type="number"
+            min={0.01}
+            step="0.01"
+            placeholder={currentPriceSek ? currentPriceSek.toFixed(2) : "0.00"}
+            value={targetPrice}
+            onChange={(e) => setTargetPrice(e.target.value)}
+            className="font-mono h-8 text-sm"
+          />
+          <Input
+            type="number"
+            min={1}
+            max={shares}
+            value={protectShares}
+            onChange={(e) => setProtectShares(e.target.value)}
+            className="font-mono h-8 text-sm w-20"
+            title="Antal"
+          />
+          <Button size="sm" className="h-8 px-3" onClick={handleSubmit} disabled={loading}>
+            {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : "OK"}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex gap-1 mt-1">
+      <button
+        onClick={() => setShowForm("stop_loss")}
+        className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-loss transition-colors px-1.5 py-0.5 rounded hover:bg-loss/10"
+        title="Stop-Loss"
+      >
+        <Shield className="h-3 w-3" />
+        SL
+      </button>
+      <button
+        onClick={() => setShowForm("take_profit")}
+        className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-gain transition-colors px-1.5 py-0.5 rounded hover:bg-gain/10"
+        title="Take-Profit"
+      >
+        <Target className="h-3 w-3" />
+        TP
+      </button>
+    </div>
+  );
 }
 
 export function HoldingsTable({ holdings, shortPositions, totalValue, savingsBalance }: HoldingsTableProps) {
@@ -77,6 +198,14 @@ export function HoldingsTable({ holdings, shortPositions, totalValue, savingsBal
                       <p className="font-mono font-semibold">{h.market_value_sek ? formatSEK(h.market_value_sek) : "–"}</p>
                     </div>
                   </div>
+                  <ProtectionButtons
+                    ticker={h.ticker}
+                    stockName={h.stock_name}
+                    shares={h.total_shares}
+                    currentPriceSek={h.current_price_sek}
+                    forShort={false}
+                    currency={h.currency}
+                  />
                 </div>
               );
             })}
@@ -93,6 +222,7 @@ export function HoldingsTable({ holdings, shortPositions, totalValue, savingsBal
                 <TableHead className="text-right">Värde (SEK)</TableHead>
                 <TableHead className="text-right">Andel</TableHead>
                 <TableHead className="text-right">Avkastning</TableHead>
+                <TableHead className="text-right">Skydd</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -142,6 +272,16 @@ export function HoldingsTable({ holdings, shortPositions, totalValue, savingsBal
                       {h.unrealized_pnl_percent !== undefined
                         ? `${isPositive ? "+" : ""}${h.unrealized_pnl_percent.toFixed(1)}%`
                         : "–"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <ProtectionButtons
+                        ticker={h.ticker}
+                        stockName={h.stock_name}
+                        shares={h.total_shares}
+                        currentPriceSek={h.current_price_sek}
+                        forShort={false}
+                        currency={h.currency}
+                      />
                     </TableCell>
                   </TableRow>
                 );
@@ -216,6 +356,14 @@ export function HoldingsTable({ holdings, shortPositions, totalValue, savingsBal
                       <p className="font-mono font-semibold">{formatSEK(sp.margin_reserved_sek)}</p>
                     </div>
                   </div>
+                  <ProtectionButtons
+                    ticker={sp.ticker}
+                    stockName={sp.stock_name}
+                    shares={sp.shares}
+                    currentPriceSek={sp.current_price_sek}
+                    forShort={true}
+                    currency="SEK"
+                  />
                 </div>
               );
             })}
@@ -231,6 +379,7 @@ export function HoldingsTable({ holdings, shortPositions, totalValue, savingsBal
                 <TableHead className="text-right">Kurs (SEK)</TableHead>
                 <TableHead className="text-right">Marginal (SEK)</TableHead>
                 <TableHead className="text-right">P&L</TableHead>
+                <TableHead className="text-right">Skydd</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -270,6 +419,16 @@ export function HoldingsTable({ holdings, shortPositions, totalValue, savingsBal
                       {sp.unrealized_pnl_percent !== undefined
                         ? `${isPositive ? "+" : ""}${sp.unrealized_pnl_percent.toFixed(1)}%`
                         : "–"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <ProtectionButtons
+                        ticker={sp.ticker}
+                        stockName={sp.stock_name}
+                        shares={sp.shares}
+                        currentPriceSek={sp.current_price_sek}
+                        forShort={true}
+                        currency="SEK"
+                      />
                     </TableCell>
                   </TableRow>
                 );

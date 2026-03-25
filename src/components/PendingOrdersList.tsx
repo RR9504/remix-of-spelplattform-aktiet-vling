@@ -14,6 +14,10 @@ const ORDER_TYPE_LABELS: Record<string, string> = {
   limit_sell: "Limitsälj",
   stop_loss: "Stop-Loss",
   take_profit: "Take-Profit",
+  market_buy: "Köporder",
+  market_sell: "Säljorder",
+  market_short: "Blankningsorder",
+  market_cover: "Täckningsorder",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -106,9 +110,15 @@ export function PendingOrdersList() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right font-mono text-sm">
-                    <span>{formatSEK(order.target_price)}</span>
-                    {order.currency && order.currency !== "SEK" && (
-                      <span className="block text-[10px] text-muted-foreground">i SEK/{order.currency}</span>
+                    {order.target_price ? (
+                      <>
+                        <span>{formatSEK(order.target_price)}</span>
+                        {order.currency && order.currency !== "SEK" && (
+                          <span className="block text-xs text-muted-foreground">i SEK/{order.currency}</span>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">Marknad</span>
                     )}
                   </TableCell>
                   <TableCell className="text-right font-mono text-sm">{order.shares}</TableCell>
@@ -160,7 +170,9 @@ export function PendingOrdersList() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right font-mono text-sm">
-                    {formatSEK(order.target_price)}
+                    {order.target_price ? formatSEK(order.target_price) : (
+                      <span className="text-muted-foreground text-xs">Marknad</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-right">
                     <Badge

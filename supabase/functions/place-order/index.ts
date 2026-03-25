@@ -20,12 +20,9 @@ serve(async (req) => {
     }
 
     const token = authHeader.replace("Bearer ", "");
+    const supabase = createClient(supabaseUrl, serviceKey);
 
-    // Create a user-scoped client to verify the JWT
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const { data: { user: authUser }, error: authError } = await createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: `Bearer ${token}` } },
-    }).auth.getUser();
+    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);
 
     if (authError || !authUser) {
       return new Response(JSON.stringify({ success: false, error: "Ogiltig token" }), {
@@ -37,8 +34,18 @@ serve(async (req) => {
 
     const { competition_id, team_id, ticker, stock_name, order_type, target_price, shares, currency } = await req.json();
 
-    if (!competition_id || !team_id || !ticker || !order_type || !target_price || !shares || shares <= 0) {
+    // Market orders don't require target_price
+    const isMarketOrder = ["market_buy", "market_sell", "market_short", "market_cover"].includes(order_type);
+
+    if (!competition_id || !team_id || !ticker || !order_type || !shares || shares <= 0) {
       return new Response(JSON.stringify({ success: false, error: "Ogiltiga parametrar" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (!isMarketOrder && (!target_price || target_price <= 0)) {
+      return new Response(JSON.stringify({ success: false, error: "Riktkurs krävs för denna ordertyp" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -51,15 +58,16 @@ serve(async (req) => {
       });
     }
 
-    const validTypes = ["limit_buy", "limit_sell", "stop_loss", "take_profit"];
+    const validTypes = [
+      "limit_buy", "limit_sell", "stop_loss", "take_profit",
+      "market_buy", "market_sell", "market_short", "market_cover",
+    ];
     if (!validTypes.includes(order_type)) {
       return new Response(JSON.stringify({ success: false, error: "Ogiltig ordertyp" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    const supabase = createClient(supabaseUrl, serviceKey);
 
     // Validate team membership
     const { data: membership } = await supabase
@@ -113,9 +121,11 @@ serve(async (req) => {
       });
     }
 
-    // For SL/TP, get reference avg cost
-    let referenceAvgCostSek: number | null = null;
-    if (order_type === "stop_loss" || order_type === "take_profit" || order_type === "limit_sell") {
+    // Determine if this is a short-related order
+    const forShort = order_type === "market_short" || order_type === "market_cover";
+
+    // For sell-side orders (limit_sell, SL, TP, market_sell): validate holdings or short position
+    if (["limit_sell", "stop_loss", "take_profit", "market_sell"].includes(order_type) && !forShort) {
       const { data: holding } = await supabase
         .from("team_holdings")
         .select("total_shares, avg_cost_per_share_sek")
@@ -130,10 +140,28 @@ serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      referenceAvgCostSek = Number(holding.avg_cost_per_share_sek);
     }
 
-    // Verify ticker exists
+    // For market_cover: validate short position exists
+    if (order_type === "market_cover") {
+      const { data: sp } = await supabase
+        .from("short_positions")
+        .select("shares")
+        .eq("competition_id", competition_id)
+        .eq("team_id", team_id)
+        .eq("ticker", ticker)
+        .is("closed_at", null)
+        .single();
+
+      if (!sp || Number(sp.shares) < shares) {
+        return new Response(JSON.stringify({ success: false, error: "Otillräcklig blankningsposition" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
+    // Verify ticker exists and get current price
     const priceUrl = `${supabaseUrl}/functions/v1/fetch-stock-price?ticker=${encodeURIComponent(ticker)}`;
     const priceResp = await fetch(priceUrl, {
       headers: { Authorization: `Bearer ${serviceKey}`, apikey: serviceKey },
@@ -147,12 +175,19 @@ serve(async (req) => {
       });
     }
 
-    // For limit_buy: reserve funds upfront so cash can't be double-spent
+    // For buy-side orders: reserve funds upfront
     let reservedAmountSek = 0;
     if (order_type === "limit_buy") {
       reservedAmountSek = Math.round(shares * target_price * 100) / 100;
+    } else if (order_type === "market_buy") {
+      // Reserve based on current price + 5% buffer for price movement
+      reservedAmountSek = Math.round(shares * priceData.price_sek * 1.05 * 100) / 100;
+    } else if (order_type === "market_short") {
+      // Reserve margin: 150% of current value
+      reservedAmountSek = Math.round(shares * priceData.price_sek * 1.5 * 100) / 100;
+    }
 
-      // Atomically check balance and reserve via RPC
+    if (reservedAmountSek > 0) {
       const { data: ct2 } = await supabase
         .from("competition_teams")
         .select("cash_balance_sek, margin_reserved_sek")
@@ -171,7 +206,7 @@ serve(async (req) => {
       if (availableCash < reservedAmountSek) {
         return new Response(JSON.stringify({
           success: false,
-          error: `Otillräckligt saldo för limitorder. Tillgängligt: ${Math.round(availableCash)} SEK, behöver: ${Math.round(reservedAmountSek)} SEK`,
+          error: `Otillräckligt saldo. Tillgängligt: ${Math.round(availableCash)} SEK, behöver: ${Math.round(reservedAmountSek)} SEK`,
         }), {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -193,6 +228,21 @@ serve(async (req) => {
       }
     }
 
+    // Get reference avg cost for SL/TP on longs
+    let referenceAvgCostSek: number | null = null;
+    if ((order_type === "stop_loss" || order_type === "take_profit" || order_type === "limit_sell") && !forShort) {
+      const { data: holding } = await supabase
+        .from("team_holdings")
+        .select("avg_cost_per_share_sek")
+        .eq("competition_id", competition_id)
+        .eq("team_id", team_id)
+        .eq("ticker", ticker)
+        .single();
+      if (holding) {
+        referenceAvgCostSek = Number(holding.avg_cost_per_share_sek);
+      }
+    }
+
     // Create pending order
     const { data: order, error: insertError } = await supabase
       .from("pending_orders")
@@ -203,12 +253,13 @@ serve(async (req) => {
         ticker,
         stock_name: stock_name || priceData.stock_name || ticker,
         order_type,
-        target_price,
+        target_price: isMarketOrder ? null : target_price,
         shares,
         currency: currency || priceData.currency || "SEK",
         status: "pending",
         reference_avg_cost_sek: referenceAvgCostSek,
         reserved_amount_sek: reservedAmountSek,
+        for_short: forShort,
         expires_at: competition.end_date + "T23:59:59Z",
       })
       .select()
@@ -217,8 +268,6 @@ serve(async (req) => {
     if (insertError) {
       // If order creation failed, release the reserved funds
       if (reservedAmountSek > 0) {
-        await supabase.rpc("release_order_funds", { _order_id: "" }).catch(() => {});
-        // Fallback: directly add back
         const { data: ct3 } = await supabase
           .from("competition_teams")
           .select("cash_balance_sek")
