@@ -5,6 +5,7 @@ import { Navbar } from "@/components/Navbar";
 import { PortfolioChart } from "@/components/PortfolioChart";
 import { HoldingsTable } from "@/components/HoldingsTable";
 import { PendingOrdersList } from "@/components/PendingOrdersList";
+import { RecentTrades } from "@/components/RecentTrades";
 import { CompetitionChat } from "@/components/CompetitionChat";
 import { PortfolioDiversification } from "@/components/PortfolioDiversification";
 import { MarketStatus } from "@/components/MarketStatus";
@@ -249,6 +250,7 @@ const Index = () => {
               totalValue={totalValue}
               savingsBalance={savingsBalance}
             />
+            <RecentTrades />
             <PendingOrdersList />
             <CompetitionChat />
           </>
