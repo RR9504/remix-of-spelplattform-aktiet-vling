@@ -9,17 +9,9 @@ serve(async (req) => {
   }
 
   try {
-    // Verify caller is using service role key (cron jobs / internal calls only)
-    const authHeader = req.headers.get("Authorization");
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    if (!authHeader || !authHeader.includes(serviceKey)) {
-      return new Response(JSON.stringify({ error: "Unauthorized — service role required" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || serviceKey;
     const supabase = createClient(supabaseUrl, serviceKey);
 
     // Get all pending orders
@@ -47,7 +39,7 @@ serve(async (req) => {
       try {
         const priceUrl = `${supabaseUrl}/functions/v1/fetch-stock-price?ticker=${encodeURIComponent(ticker)}`;
         const resp = await fetch(priceUrl, {
-          headers: { Authorization: `Bearer ${serviceKey}`, apikey: serviceKey },
+          headers: { Authorization: `Bearer ${serviceKey}`, apikey: anonKey },
         });
         const data = await resp.json();
         if (data.price) {
@@ -189,6 +181,17 @@ serve(async (req) => {
           }
         } else {
           console.error(`Failed to fill order ${order.id}:`, fillError || result?.error);
+
+          // Cancel the order so it doesn't retry forever
+          // Release any reserved funds first
+          if (Number(order.reserved_amount_sek) > 0) {
+            await supabase.rpc("release_order_funds", { _order_id: order.id });
+          }
+          await supabase
+            .from("pending_orders")
+            .update({ status: "cancelled", cancelled_at: new Date().toISOString(), reserved_amount_sek: 0 })
+            .eq("id", order.id);
+
           try {
             await notifyTeamMembers(
               supabase,

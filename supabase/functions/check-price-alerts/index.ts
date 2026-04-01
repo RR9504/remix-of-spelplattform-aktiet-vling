@@ -9,17 +9,8 @@ serve(async (req) => {
   }
 
   try {
-    // Service role only (cron job)
-    const authHeader = req.headers.get("Authorization");
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    if (!authHeader || !authHeader.includes(serviceKey)) {
-      return new Response(JSON.stringify({ error: "Unauthorized — service role required" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceKey);
 
     // Get all watchlist items that have an alert threshold set
