@@ -20,12 +20,9 @@ serve(async (req) => {
     }
 
     const token = authHeader.replace("Bearer ", "");
+    const supabase = createClient(supabaseUrl, serviceKey);
 
-    // Create a user-scoped client to verify the JWT
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const { data: { user: authUser }, error: authError } = await createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: `Bearer ${token}` } },
-    }).auth.getUser();
+    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);
 
     if (authError || !authUser) {
       return new Response(JSON.stringify({ success: false, error: "Ogiltig token" }), {
@@ -43,8 +40,6 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    const supabase = createClient(supabaseUrl, serviceKey);
 
     // Get order and validate ownership
     const { data: order } = await supabase
@@ -84,8 +79,8 @@ serve(async (req) => {
       });
     }
 
-    // Release reserved funds if limit_buy
-    if (order.order_type === "limit_buy" && Number(order.reserved_amount_sek) > 0) {
+    // Release reserved funds for any order type that reserved cash
+    if (Number(order.reserved_amount_sek) > 0) {
       await supabase.rpc("release_order_funds", { _order_id: order_id });
     }
 
