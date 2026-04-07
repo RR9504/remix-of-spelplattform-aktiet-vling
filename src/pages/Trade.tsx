@@ -28,7 +28,7 @@ const CERT_EXAMPLES = [
 ];
 
 const Trade = () => {
-  const { activeCompetition, activeTeam, cashBalance } = useCompetition();
+  const { activeCompetition, activeTeam, cashBalance, marginReserved } = useCompetition();
   const [searchQuery, setSearchQuery] = useState("");
   const [showCerts, setShowCerts] = useState(false);
 
@@ -41,7 +41,7 @@ const Trade = () => {
             <h1 className="text-2xl font-bold">Handla</h1>
             {activeCompetition && activeTeam ? (
               <p className="text-muted-foreground text-sm">
-                {activeTeam.name} · {activeCompetition.name} · Saldo: {formatSEK(cashBalance ?? 0)}
+                {activeTeam.name} · {activeCompetition.name} · Saldo: {formatSEK((cashBalance ?? 0) - (marginReserved ?? 0))}
               </p>
             ) : (
               <p className="text-muted-foreground text-sm">Sök och handla aktier på svenska och amerikanska marknader</p>

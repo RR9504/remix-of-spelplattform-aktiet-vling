@@ -18,7 +18,7 @@ interface TradeDialogProps {
 }
 
 export function TradeDialog({ stock, priceData: initialPriceData, onClose }: TradeDialogProps) {
-  const { activeCompetition, activeTeam, cashBalance, refresh } = useCompetition();
+  const { activeCompetition, activeTeam, cashBalance, marginReserved, refresh } = useCompetition();
   const rules = (activeCompetition as any)?.rules || {};
   const shortsAllowed = rules.allow_shorts !== false;
   const mktFilter = rules.market_filter || "all";
@@ -96,8 +96,9 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
   const currency = priceData?.currency ?? stock.currency ?? "SEK";
   const costInCurrency = qty * price;
   const costSEK = costInCurrency * exchangeRate;
-  const maxShares = side === "buy" && cashBalance && price > 0
-    ? Math.floor(cashBalance / (price * exchangeRate))
+  const availableCash = (cashBalance ?? 0) - (marginReserved ?? 0);
+  const maxShares = side === "buy" && availableCash > 0 && price > 0
+    ? Math.floor(availableCash / (price * exchangeRate))
     : 0;
 
   // Place a market order (queued for next open)
@@ -379,7 +380,7 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
                 {cashBalance !== null && (
                   <div className="text-sm">
                     <span className="text-muted-foreground">Tillgängligt: </span>
-                    <span className="font-mono font-semibold">{formatSEK(cashBalance)}</span>
+                    <span className="font-mono font-semibold">{formatSEK(availableCash)}</span>
                     {side === "buy" && maxShares > 0 && (
                       <span className="text-muted-foreground"> (max {maxShares} st)</span>
                     )}
@@ -493,7 +494,7 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
                   <div className="text-sm space-y-1">
                     <div>
                       <span className="text-muted-foreground">Tillgängligt: </span>
-                      <span className="font-mono font-semibold">{formatSEK(cashBalance)}</span>
+                      <span className="font-mono font-semibold">{formatSEK(availableCash)}</span>
                     </div>
                     <p className="text-xs text-muted-foreground">
                       Marginal: 150% av blankvärdet reserveras

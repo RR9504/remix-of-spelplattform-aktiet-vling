@@ -27,6 +27,7 @@ interface CompetitionContextType {
   setActiveCompetitionId: (id: string | null) => void;
   setActiveTeamId: (id: string | null) => void;
   cashBalance: number | null;
+  marginReserved: number | null;
   loading: boolean;
   refresh: () => Promise<void>;
 }
@@ -41,6 +42,7 @@ const CompetitionContext = createContext<CompetitionContextType>({
   setActiveCompetitionId: () => {},
   setActiveTeamId: () => {},
   cashBalance: null,
+  marginReserved: null,
   loading: true,
   refresh: async () => {},
 });
@@ -86,6 +88,7 @@ export function CompetitionProvider({ children }: { children: ReactNode }) {
   const [activeTeamId, setActiveTeamId] = useState<string | null>(cached?.activeTeamId ?? null);
   const [competitionTeamMap, setCompetitionTeamMap] = useState<Record<string, string[]>>(cached?.competitionTeamMap ?? {});
   const [cashBalance, setCashBalance] = useState<number | null>(null);
+  const [marginReserved, setMarginReserved] = useState<number | null>(null);
   const [loading, setLoading] = useState(!cached);
 
   const refresh = useCallback(async () => {
@@ -173,22 +176,28 @@ export function CompetitionProvider({ children }: { children: ReactNode }) {
     }
   }, [user]);
 
-  // Fetch cash balance when active competition/team change
-  useEffect(() => {
+  // Fetch cash balance and margin when active competition/team change
+  const refreshCashBalance = useCallback(() => {
     if (!activeCompetitionId || !activeTeamId) {
       setCashBalance(null);
+      setMarginReserved(null);
       return;
     }
     supabase
       .from("competition_teams")
-      .select("cash_balance_sek")
+      .select("cash_balance_sek, margin_reserved_sek")
       .eq("competition_id", activeCompetitionId)
       .eq("team_id", activeTeamId)
       .single()
       .then(({ data }) => {
         setCashBalance(data ? Number((data as any).cash_balance_sek) : null);
+        setMarginReserved(data ? Number((data as any).margin_reserved_sek || 0) : null);
       });
   }, [activeCompetitionId, activeTeamId]);
+
+  useEffect(() => {
+    refreshCashBalance();
+  }, [refreshCashBalance]);
 
   useEffect(() => {
     refresh();
@@ -264,8 +273,12 @@ export function CompetitionProvider({ children }: { children: ReactNode }) {
         setActiveCompetitionId,
         setActiveTeamId,
         cashBalance,
+        marginReserved,
         loading,
-        refresh,
+        refresh: async () => {
+          await refresh();
+          refreshCashBalance();
+        },
       }}
     >
       {children}
