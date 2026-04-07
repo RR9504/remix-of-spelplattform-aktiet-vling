@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { isMarketOpen, formatSEK } from "@/lib/mockData";
-import { NASDAQ_STOCKHOLM, US_POPULAR, type IndexStock } from "@/data/exchangeStocks";
+import { NASDAQ_STOCKHOLM, NASDAQ_COPENHAGEN, US_POPULAR, type IndexStock } from "@/data/exchangeStocks";
 
 interface PriceInfo {
   price_sek: number;
@@ -14,13 +14,15 @@ interface PriceInfo {
 
 export function MarketStatus() {
   const seOpen = isMarketOpen("SE");
+  const dkOpen = isMarketOpen("DK");
   const usOpen = isMarketOpen("US");
-  const [openMarket, setOpenMarket] = useState<"SE" | "US" | null>(null);
+  const [openMarket, setOpenMarket] = useState<"SE" | "DK" | "US" | null>(null);
 
   return (
     <>
       <div className="flex flex-col sm:flex-row gap-2">
         <StatusBadge label="Nasdaq Stockholm" open={seOpen} hours="09:00–17:30" flag="🇸🇪" onClick={() => setOpenMarket("SE")} />
+        <StatusBadge label="Nasdaq Copenhagen" open={dkOpen} hours="09:00–17:00" flag="🇩🇰" onClick={() => setOpenMarket("DK")} />
         <StatusBadge label="NYSE/NASDAQ" open={usOpen} hours="15:30–22:00" flag="🇺🇸" onClick={() => setOpenMarket("US")} />
       </div>
       {openMarket && (
@@ -50,10 +52,10 @@ function StatusBadge({ label, open, hours, flag, onClick }: { label: string; ope
   );
 }
 
-function IndexDialog({ market, onClose }: { market: "SE" | "US"; onClose: () => void }) {
+function IndexDialog({ market, onClose }: { market: "SE" | "DK" | "US"; onClose: () => void }) {
   const navigate = useNavigate();
-  const title = market === "SE" ? "Nasdaq Stockholm" : "NYSE / NASDAQ";
-  const fallbackStocks = market === "SE" ? NASDAQ_STOCKHOLM : US_POPULAR;
+  const title = market === "SE" ? "Nasdaq Stockholm" : market === "DK" ? "Nasdaq Copenhagen" : "NYSE / NASDAQ";
+  const fallbackStocks = market === "SE" ? NASDAQ_STOCKHOLM : market === "DK" ? NASDAQ_COPENHAGEN : US_POPULAR;
 
   const [stocks, setStocks] = useState<IndexStock[]>([]);
   const [prices, setPrices] = useState<Record<string, PriceInfo>>({});
@@ -62,19 +64,22 @@ function IndexDialog({ market, onClose }: { market: "SE" | "US"; onClose: () => 
 
   useEffect(() => {
     const load = async () => {
-      if (market === "SE") {
+      if (market === "SE" || market === "DK") {
+        const exchangeCode = market === "SE" ? "XSTO" : "XCPH";
+        const tickerSuffix = market === "SE" ? ".ST" : ".CO";
+
         // 1. Try dynamic table first
         const { data: dbStocks } = await (supabase
           .from("exchange_stocks" as any)
           .select("ticker, name")
-          .eq("exchange", "XSTO")
+          .eq("exchange", exchangeCode)
           .order("name") as any);
 
-        // 2. Also fetch all .ST tickers from price cache (extra discovered stocks)
+        // 2. Also fetch tickers from price cache (extra discovered stocks)
         const { data: cacheRows } = await supabase
           .from("stock_price_cache")
           .select("ticker, price_sek, change_percent, stock_name")
-          .like("ticker", "%.ST");
+          .like("ticker", `%${tickerSuffix}`);
 
         const priceMap: Record<string, PriceInfo> = {};
         const cacheStocks: IndexStock[] = [];
@@ -197,7 +202,7 @@ function IndexDialog({ market, onClose }: { market: "SE" | "US"; onClose: () => 
                   className="w-full flex items-center justify-between rounded-lg px-3 py-2 text-left transition-colors hover:bg-muted/50"
                 >
                   <div className="min-w-0">
-                    <p className="font-mono font-semibold text-sm">{stock.ticker.replace(".ST", "")}</p>
+                    <p className="font-mono font-semibold text-sm">{stock.ticker.replace(/\.(ST|CO)$/, "")}</p>
                     <p className="text-xs text-muted-foreground truncate">{stock.name}</p>
                   </div>
                   <div className="text-right shrink-0 ml-3">

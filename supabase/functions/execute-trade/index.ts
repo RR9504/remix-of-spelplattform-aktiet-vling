@@ -107,6 +107,7 @@ serve(async (req) => {
     // Enforce competition rules
     const rules = competition.rules || {};
     const isSETicker = ticker.endsWith(".ST");
+    const isDKTicker = ticker.endsWith(".CO");
 
     if (rules.allow_shorts === false && (side === "short" || side === "cover")) {
       return new Response(JSON.stringify({ success: false, error: "Blankning är inte tillåten i denna tävling" }), {
@@ -122,7 +123,7 @@ serve(async (req) => {
       });
     }
 
-    if (rules.market_filter === "US" && isSETicker) {
+    if (rules.market_filter === "US" && (isSETicker || isDKTicker)) {
       return new Response(JSON.stringify({ success: false, error: "Denna tävling tillåter bara amerikanska aktier" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -148,6 +149,7 @@ serve(async (req) => {
     const isCrypto = ticker.includes("-USD") || ticker.includes("-EUR") || ticker.includes("-GBP");
     const isCommodity = ticker.endsWith("=F");
     const isSE = ticker.endsWith(".ST");
+    const isDK = ticker.endsWith(".CO");
 
     // Check if relevant market is open (CET/Stockholm timezone)
     // Crypto trades 24/7, commodities and stocks have market hours
@@ -158,8 +160,9 @@ serve(async (req) => {
       const time = cet.getHours() * 60 + cet.getMinutes();
       const isWeekday = day >= 1 && day <= 5;
       const seOpen = isWeekday && time >= 9 * 60 && time <= 17 * 60 + 30;
+      const dkOpen = isWeekday && time >= 9 * 60 && time <= 17 * 60;
       const usOpen = isWeekday && time >= 15 * 60 + 30 && time <= 22 * 60;
-      const marketOpen = isCommodity ? usOpen : (isSE ? seOpen : usOpen);
+      const marketOpen = isCommodity ? usOpen : (isSE ? seOpen : (isDK ? dkOpen : usOpen));
 
       if (!marketOpen) {
         return new Response(JSON.stringify({

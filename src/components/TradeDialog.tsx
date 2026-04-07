@@ -27,10 +27,12 @@ export function TradeDialog({ stock, priceData: initialPriceData, onClose }: Tra
   const isCrypto = stock.ticker.includes("-USD") || stock.ticker.includes("-EUR") || stock.ticker.includes("-GBP");
   const isCommodity = stock.ticker.endsWith("=F");
   const isSE = stock.exchange?.includes("Stockholm") || stock.ticker.endsWith(".ST");
+  const isDK = stock.exchange?.includes("Copenhagen") || stock.ticker.endsWith(".CO");
   const isSETicker = isSE;
-  const assetMarket: "SE" | "US" | "CRYPTO" = isCrypto ? "CRYPTO" : (isSE ? "SE" : "US");
+  const isDKTicker = isDK;
+  const assetMarket: "SE" | "DK" | "US" | "CRYPTO" = isCrypto ? "CRYPTO" : (isSE ? "SE" : (isDK ? "DK" : "US"));
   const marketOpen = isMarketOpen(assetMarket);
-  const marketBlocked = (mktFilter === "SE" && !isSETicker) || (mktFilter === "US" && (isSETicker || isCrypto || isCommodity));
+  const marketBlocked = (mktFilter === "SE" && !isSETicker) || (mktFilter === "US" && (isSETicker || isDKTicker || isCrypto || isCommodity));
 
   const [shares, setShares] = useState("");
   const [side, setSide] = useState<"buy" | "sell">("buy");

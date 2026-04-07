@@ -123,6 +123,38 @@ export const NASDAQ_MID_CAP: IndexStock[] = [
 // All Nasdaq Stockholm stocks combined
 export const NASDAQ_STOCKHOLM = [...NASDAQ_LARGE_CAP, ...NASDAQ_MID_CAP];
 
+// Nasdaq Copenhagen Large Cap
+export const NASDAQ_COPENHAGEN: IndexStock[] = [
+  { ticker: "AMBU-B.CO", name: "Ambu B" },
+  { ticker: "BAVA.CO", name: "Bavarian Nordic" },
+  { ticker: "CARL-A.CO", name: "Carlsberg A" },
+  { ticker: "CARL-B.CO", name: "Carlsberg B" },
+  { ticker: "CHR.CO", name: "Chr. Hansen" },
+  { ticker: "COLO-B.CO", name: "Coloplast B" },
+  { ticker: "DANSKE.CO", name: "Danske Bank" },
+  { ticker: "DEMANT.CO", name: "Demant" },
+  { ticker: "DSV.CO", name: "DSV" },
+  { ticker: "FLS.CO", name: "FLSmidth" },
+  { ticker: "GN.CO", name: "GN Store Nord" },
+  { ticker: "GMAB.CO", name: "Genmab" },
+  { ticker: "ISS.CO", name: "ISS" },
+  { ticker: "JYSK.CO", name: "Jyske Bank" },
+  { ticker: "MAERSK-A.CO", name: "Mærsk A" },
+  { ticker: "MAERSK-B.CO", name: "Mærsk B" },
+  { ticker: "NETC.CO", name: "Netcompany" },
+  { ticker: "NOVO-B.CO", name: "Novo Nordisk B" },
+  { ticker: "NZYM-B.CO", name: "Novozymes B" },
+  { ticker: "ORSTED.CO", name: "Ørsted" },
+  { ticker: "PNDORA.CO", name: "Pandora" },
+  { ticker: "RBREW.CO", name: "Royal Unibrew" },
+  { ticker: "ROCK-B.CO", name: "Rockwool B" },
+  { ticker: "SIM.CO", name: "SimCorp" },
+  { ticker: "SYDB.CO", name: "Sydbank" },
+  { ticker: "TRYG.CO", name: "Tryg" },
+  { ticker: "VWS.CO", name: "Vestas Wind Systems" },
+  { ticker: "WDH.CO", name: "William Demant" },
+];
+
 // Popular US stocks
 export const US_POPULAR: IndexStock[] = [
   { ticker: "AAPL", name: "Apple" },

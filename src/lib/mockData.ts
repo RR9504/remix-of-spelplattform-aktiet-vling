@@ -85,7 +85,7 @@ export function formatPrice(value: number, currency: string): string {
   return new Intl.NumberFormat('sv-SE', { style: 'currency', currency, minimumFractionDigits: 2 }).format(value);
 }
 
-export function isMarketOpen(market: 'SE' | 'US' | 'CRYPTO'): boolean {
+export function isMarketOpen(market: 'SE' | 'DK' | 'US' | 'CRYPTO'): boolean {
   if (market === 'CRYPTO') return true;
 
   const now = new Date();
@@ -99,6 +99,8 @@ export function isMarketOpen(market: 'SE' | 'US' | 'CRYPTO'): boolean {
 
   if (market === 'SE') {
     return time >= 9 * 60 && time <= 17 * 60 + 30;  // 09:00–17:30 CET
+  } else if (market === 'DK') {
+    return time >= 9 * 60 && time <= 17 * 60;        // 09:00–17:00 CET
   } else {
     return time >= 15 * 60 + 30 && time <= 22 * 60;  // 15:30–22:00 CET
   }
