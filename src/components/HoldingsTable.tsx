@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -6,10 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Landmark, Shield, Target, Loader2, X } from "lucide-react";
 import { formatSEK } from "@/lib/mockData";
-import { placeOrder } from "@/lib/api";
+import { placeOrder, getOrders } from "@/lib/api";
 import { useCompetition } from "@/contexts/CompetitionContext";
 import { toast } from "sonner";
-import type { Holding, ShortPosition } from "@/types/trading";
+import type { Holding, ShortPosition, PendingOrder } from "@/types/trading";
 
 interface HoldingsTableProps {
   holdings: Holding[];
@@ -18,13 +18,14 @@ interface HoldingsTableProps {
   savingsBalance?: number;
 }
 
-function ProtectionButtons({ ticker, stockName, shares, currentPriceSek, forShort, currency }: {
+function ProtectionButtons({ ticker, stockName, shares, currentPriceSek, forShort, currency, pendingOrders = [] }: {
   ticker: string;
   stockName: string;
   shares: number;
   currentPriceSek?: number;
   forShort: boolean;
   currency: string;
+  pendingOrders?: PendingOrder[];
 }) {
   const { activeCompetition, activeTeam, refresh } = useCompetition();
   const [showForm, setShowForm] = useState<"stop_loss" | "take_profit" | null>(null);
@@ -111,11 +112,22 @@ function ProtectionButtons({ ticker, stockName, shares, currentPriceSek, forShor
     );
   }
 
+  const hasActiveSL = pendingOrders.some(
+    (o) => o.ticker === ticker && o.order_type === "stop_loss" && o.status === "pending" && o.for_short === forShort
+  );
+  const hasActiveTP = pendingOrders.some(
+    (o) => o.ticker === ticker && o.order_type === "take_profit" && o.status === "pending" && o.for_short === forShort
+  );
+
   return (
     <div className="flex gap-1 mt-1">
       <button
         onClick={() => setShowForm("stop_loss")}
-        className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-loss transition-colors px-1.5 py-0.5 rounded hover:bg-loss/10"
+        className={`inline-flex items-center gap-1 text-xs transition-colors px-1.5 py-0.5 rounded ${
+          hasActiveSL
+            ? "text-loss bg-loss/10 glow-loss"
+            : "text-muted-foreground hover:text-loss hover:bg-loss/10"
+        }`}
         title="Stop-Loss"
       >
         <Shield className="h-3 w-3" />
@@ -123,7 +135,11 @@ function ProtectionButtons({ ticker, stockName, shares, currentPriceSek, forShor
       </button>
       <button
         onClick={() => setShowForm("take_profit")}
-        className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-gain transition-colors px-1.5 py-0.5 rounded hover:bg-gain/10"
+        className={`inline-flex items-center gap-1 text-xs transition-colors px-1.5 py-0.5 rounded ${
+          hasActiveTP
+            ? "text-gain bg-gain/10 glow-gain"
+            : "text-muted-foreground hover:text-gain hover:bg-gain/10"
+        }`}
         title="Take-Profit"
       >
         <Target className="h-3 w-3" />
@@ -134,6 +150,21 @@ function ProtectionButtons({ ticker, stockName, shares, currentPriceSek, forShor
 }
 
 export function HoldingsTable({ holdings, shortPositions, totalValue, savingsBalance }: HoldingsTableProps) {
+  const { activeCompetition, activeTeam } = useCompetition();
+  const [pendingOrders, setPendingOrders] = useState<PendingOrder[]>([]);
+  const intervalRef = useRef<ReturnType<typeof setInterval>>();
+
+  useEffect(() => {
+    const fetchOrders = async () => {
+      if (!activeCompetition || !activeTeam) return;
+      const data = await getOrders(activeCompetition.id, activeTeam.id);
+      setPendingOrders(data.filter((o) => o.status === "pending"));
+    };
+    fetchOrders();
+    intervalRef.current = setInterval(fetchOrders, 30_000);
+    return () => clearInterval(intervalRef.current);
+  }, [activeCompetition, activeTeam]);
+
   const hasShorts = shortPositions && shortPositions.length > 0;
   const hasSavings = (savingsBalance ?? 0) > 0;
 
@@ -205,6 +236,7 @@ export function HoldingsTable({ holdings, shortPositions, totalValue, savingsBal
                     currentPriceSek={h.current_price_sek}
                     forShort={false}
                     currency={h.currency}
+                    pendingOrders={pendingOrders}
                   />
                 </div>
               );
@@ -363,6 +395,7 @@ export function HoldingsTable({ holdings, shortPositions, totalValue, savingsBal
                     currentPriceSek={sp.current_price_sek}
                     forShort={true}
                     currency="SEK"
+                    pendingOrders={pendingOrders}
                   />
                 </div>
               );
