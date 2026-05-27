@@ -22,3 +22,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local one-off analysis output
+scripts/wolf-*.json
+scripts/wolf-*.html
+scripts/wolf-*.md
+scripts/.token
+scripts/.pass
