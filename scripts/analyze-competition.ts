@@ -491,6 +491,7 @@ async function main() {
 
   const allDates = [...new Set(Object.values(teamSeries).flat().map((p) => p.date))].sort();
   const chartData = {
+    title: comp.name,
     dates: allDates,
     initial,
     race: standings.map((s, i) => {
@@ -627,11 +628,37 @@ async function main() {
   /* reveal */
   .reveal{opacity:0;transform:translateY(22px);transition:opacity .6s ease,transform .6s ease}
   .reveal.in{opacity:1;transform:none}
+  /* embed button + modal */
+  .embed-btn{position:fixed;top:18px;right:18px;z-index:50;display:inline-flex;align-items:center;gap:7px;background:rgba(45,212,191,.14);border:1px solid rgba(45,212,191,.4);color:#7af0e0;font-family:Sora,sans-serif;font-weight:600;font-size:13px;padding:9px 14px;border-radius:12px;cursor:pointer;backdrop-filter:blur(8px);transition:background .2s,transform .2s}
+  .embed-btn:hover{background:rgba(45,212,191,.26);transform:translateY(-1px)}
+  .modal{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;background:rgba(3,6,14,.72);backdrop-filter:blur(4px);padding:20px}
+  .modal.open{display:flex}
+  .modal-card{background:#0d1424;border:1px solid var(--bd);border-radius:18px;max-width:580px;width:100%;padding:24px;box-shadow:0 24px 70px rgba(0,0,0,.55)}
+  .modal-card h3{font-family:Sora;font-weight:700;font-size:18px;margin-bottom:6px}
+  .modal-card p{color:var(--mut);font-size:13px;margin-bottom:16px}
+  .code{background:#070b16;border:1px solid var(--bd);border-radius:10px;padding:13px;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.5;color:#cbd5e1;white-space:pre-wrap;word-break:break-all;max-height:170px;overflow:auto}
+  .modal-actions{display:flex;gap:10px;margin-top:16px}
+  .mbtn{flex:1;border:0;border-radius:10px;padding:11px;font-family:Sora,sans-serif;font-weight:600;font-size:14px;cursor:pointer}
+  .mbtn-primary{background:var(--teal);color:#04221d}
+  .mbtn-ghost{background:rgba(255,255,255,.06);color:var(--tx);border:1px solid var(--bd)}
+  @media print{.embed-btn,.modal{display:none!important}}
   @media(max-width:720px){.grid2{grid-template-columns:1fr}.podium{grid-template-columns:1fr;align-items:stretch}.first .p-bar,.second .p-bar,.third .p-bar{height:44px}}
 </style>
 </head>
 <body>
 <div class="orb a"></div><div class="orb b"></div><div class="orb c"></div>
+<button class="embed-btn" id="embedBtn" title="Kopiera kod för att bädda in sidan">&lt;/&gt; Bädda in</button>
+<div class="modal" id="embedModal">
+  <div class="modal-card">
+    <h3>Bädda in den här sidan</h3>
+    <p>Klistra in koden i en Embed-/iframe-webbdel (t.ex. SharePoint). Den pekar på den här sidans URL.</p>
+    <div class="code" id="embedCode"></div>
+    <div class="modal-actions">
+      <button class="mbtn mbtn-primary" id="copyBtn">Kopiera kod</button>
+      <button class="mbtn mbtn-ghost" id="closeBtn">Stäng</button>
+    </div>
+  </div>
+</div>
 <div class="wrap">
   <header class="hero">
     <div class="emoji">🐺</div>
@@ -722,6 +749,21 @@ async function main() {
   });
   var obs = new IntersectionObserver(function(es){ es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); obs.unobserve(e.target);} }); },{threshold:0.12});
   document.querySelectorAll('.reveal').forEach(function(el){obs.observe(el);});
+  // bädda in-knapp
+  var ttl = String(CHART.title||'').replace(/"/g,'');
+  var iframeCode = '<iframe src="' + location.href.split('#')[0] + '" title="' + ttl + '" width="100%" height="3400" loading="lazy" style="border:0;max-width:1120px"></iframe>';
+  var codeEl = document.getElementById('embedCode'); if(codeEl) codeEl.textContent = iframeCode;
+  var modal = document.getElementById('embedModal');
+  var eb = document.getElementById('embedBtn'); if(eb) eb.onclick = function(){ modal.classList.add('open'); };
+  var cb = document.getElementById('closeBtn'); if(cb) cb.onclick = function(){ modal.classList.remove('open'); };
+  if(modal) modal.onclick = function(e){ if(e.target===modal) modal.classList.remove('open'); };
+  document.addEventListener('keydown', function(e){ if(e.key==='Escape'&&modal) modal.classList.remove('open'); });
+  var copyBtn = document.getElementById('copyBtn');
+  if(copyBtn) copyBtn.onclick = function(){ var b=this;
+    var done=function(){ b.textContent='Kopierat! ✓'; setTimeout(function(){b.textContent='Kopiera kod';},1800); };
+    if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(iframeCode).then(done).catch(fallback); } else { fallback(); }
+    function fallback(){ var r=document.createRange(); r.selectNode(codeEl); var s=getSelection(); s.removeAllRanges(); s.addRange(r); try{document.execCommand('copy');}catch(_){} s.removeAllRanges(); done(); }
+  };
   if(window.confetti){ setTimeout(function(){ confetti({particleCount:150,spread:80,startVelocity:42,origin:{y:0.3},colors:['#fbbf24','#2dd4bf','#60a5fa','#f472b6']}); },400); }
 })();
 </script>
