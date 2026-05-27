@@ -550,6 +550,7 @@ async function main() {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
 <title>${esc(comp.name)} — tävlingsrapport</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -878,8 +879,9 @@ async function main() {
     .toLowerCase()
     .replace(/[àáâãä]/g, "a").replace(/å/g, "a").replace(/ö/g, "o").replace(/ø/g, "o").replace(/[èéêë]/g, "e").replace(/ü/g, "u")
     .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  // Sajten kör JS utan problem → publicera den INTERAKTIVA versionen där (embed-varianten är till SharePoint).
   fs.mkdirSync(ROOT + "public/resultat", { recursive: true });
-  fs.writeFileSync(ROOT + `public/resultat/${slug}.html`, embed);
+  fs.writeFileSync(ROOT + `public/resultat/${slug}.html`, html);
 
   console.error(`\nKlart!`);
   console.error(`  Publik sida (deploy):  public/resultat/${slug}.html   →   https://<din-domän>/resultat/${slug}.html`);

@@ -5,65 +5,86 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title>The Wolf of Södergatan — tävlingsrapport</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 <style>
-  :root{--bg:#070b16;--card:rgba(255,255,255,.035);--card2:rgba(255,255,255,.06);--bd:rgba(255,255,255,.09);--tx:#e6edf6;--mut:#7c8aa3;--teal:#2dd4bf;--gain:#22c55e;--loss:#ef4444;
-    --disp:"Segoe UI Semibold","Segoe UI",system-ui,-apple-system,Roboto,sans-serif;--body:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;--mono:ui-monospace,"Cascadia Mono","Segoe UI Mono",Menlo,Consolas,monospace;}
+  :root{
+    --bg:#070b16; --bg2:#0b1120; --card:rgba(255,255,255,.035); --card2:rgba(255,255,255,.06);
+    --bd:rgba(255,255,255,.09); --tx:#e6edf6; --mut:#7c8aa3; --teal:#2dd4bf; --gain:#22c55e; --loss:#ef4444;
+    --gold:#fbbf24; --silver:#cbd5e1; --bronze:#e07b39;
+  }
   *{box-sizing:border-box;margin:0;padding:0}
-  body{background:var(--bg);color:var(--tx);font-family:var(--body);line-height:1.5;-webkit-font-smoothing:antialiased}
-  .num{font-family:var(--mono);font-variant-numeric:tabular-nums}
-  .gain{color:var(--gain)}.loss{color:var(--loss)}
-  .orb{position:fixed;border-radius:50%;filter:blur(90px);opacity:.45;z-index:0;pointer-events:none}
-  .orb.a{width:480px;height:480px;background:#0f766e;top:-150px;right:-110px}
-  .orb.b{width:440px;height:440px;background:#1e3a8a;bottom:-160px;left:-130px}
-  .wrap{position:relative;z-index:1;max-width:1080px;margin:0 auto;padding:0 20px 60px}
-  .hero{text-align:center;padding:54px 0 30px}
-  .hero .emoji{font-size:58px}
-  .hero h1{font-family:var(--disp);font-weight:700;font-size:clamp(30px,5.5vw,54px);line-height:1.05;margin:12px 0 8px;background:linear-gradient(120deg,#fff 10%,var(--teal) 55%,#60a5fa 95%);-webkit-background-clip:text;background-clip:text;color:transparent;letter-spacing:-.02em}
-  .hero .sub{color:var(--mut);font-size:14px}
-  .chips{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:26px}
-  .chip{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:11px 18px;min-width:118px}
-  .chip .v{font-family:var(--mono);font-weight:700;font-size:20px;display:block}
+  html{scroll-behavior:smooth}
+  body{background:var(--bg);color:var(--tx);font-family:Inter,system-ui,sans-serif;line-height:1.5;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+  .num,.mono{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums}
+  .gain{color:var(--gain)} .loss{color:var(--loss)}
+  /* background orbs */
+  .orb{position:fixed;border-radius:50%;filter:blur(90px);opacity:.5;z-index:0;pointer-events:none}
+  .orb.a{width:520px;height:520px;background:#0f766e;top:-160px;right:-120px}
+  .orb.b{width:480px;height:480px;background:#1e3a8a;bottom:-180px;left:-140px}
+  .orb.c{width:360px;height:360px;background:#7e22ce;top:40%;left:55%;opacity:.28}
+  .wrap{position:relative;z-index:1;max-width:1080px;margin:0 auto;padding:0 20px 80px}
+  /* hero */
+  .hero{text-align:center;padding:90px 0 40px}
+  .hero .emoji{font-size:64px;filter:drop-shadow(0 6px 24px rgba(45,212,191,.45));animation:float 5s ease-in-out infinite}
+  @keyframes float{50%{transform:translateY(-12px)}}
+  .hero h1{font-family:Sora;font-weight:800;font-size:clamp(34px,6vw,60px);line-height:1.05;margin:14px 0 8px;
+    background:linear-gradient(120deg,#fff 10%,var(--teal) 55%,#60a5fa 95%);-webkit-background-clip:text;background-clip:text;color:transparent;letter-spacing:-.02em}
+  .hero .sub{color:var(--mut);font-size:15px;letter-spacing:.04em}
+  .chips{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:30px}
+  .chip{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:12px 18px;min-width:120px;backdrop-filter:blur(8px)}
+  .chip .v{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:20px;display:block}
   .chip .l{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin-top:3px}
-  section{margin-top:52px}
-  .sec-title{font-family:var(--disp);font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.18em;color:var(--teal);margin-bottom:20px;display:flex;align-items:center;gap:10px}
+  /* sections */
+  section{margin-top:64px}
+  .sec-title{font-family:Sora;font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.18em;color:var(--teal);margin-bottom:22px;display:flex;align-items:center;gap:10px}
   .sec-title::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--bd),transparent)}
+  /* podium */
   .podium{display:grid;grid-template-columns:1fr 1.15fr 1fr;gap:16px;align-items:end}
-  .podium-col{background:var(--card);border:1px solid var(--bd);border-radius:18px;padding:22px 14px 0;text-align:center;overflow:hidden}
+  .podium-col{background:var(--card);border:1px solid var(--bd);border-radius:18px;padding:22px 14px 0;text-align:center;overflow:hidden;backdrop-filter:blur(8px)}
   .podium-col.first{border-color:rgba(251,191,36,.4);background:linear-gradient(180deg,rgba(251,191,36,.12),var(--card));box-shadow:0 0 50px rgba(251,191,36,.18)}
-  .medal{font-size:38px;line-height:1}
-  .p-name{font-family:var(--disp);font-weight:700;margin:10px 0 6px;font-size:16px}
-  .p-ret{font-family:var(--mono);font-weight:700;font-size:22px}
-  .p-val{color:var(--mut);font-family:var(--mono);font-size:13px;margin-top:2px}
-  .p-bar{margin-top:16px;display:flex;align-items:center;justify-content:center;font-family:var(--disp);font-weight:800;color:rgba(255,255,255,.85);background:rgba(255,255,255,.05)}
-  .first .p-bar{height:92px;background:linear-gradient(180deg,rgba(251,191,36,.35),rgba(251,191,36,.05))}
-  .second .p-bar{height:64px}.third .p-bar{height:44px}
+  .medal{font-size:40px;line-height:1}
+  .p-name{font-family:Sora;font-weight:700;margin:10px 0 6px;font-size:16px}
+  .p-ret{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:22px}
+  .p-val{color:var(--mut);font-family:'JetBrains Mono',monospace;font-size:13px;margin-top:2px}
+  .p-bar{margin-top:16px;display:flex;align-items:center;justify-content:center;font-family:Sora;font-weight:800;color:rgba(255,255,255,.85);background:rgba(255,255,255,.05)}
+  .first .p-bar{height:96px;background:linear-gradient(180deg,rgba(251,191,36,.35),rgba(251,191,36,.05))}
+  .second .p-bar{height:66px} .third .p-bar{height:46px}
+  /* awards grid */
   .awards{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
-  .award{display:flex;gap:14px;align-items:flex-start;background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:16px}
+  .award{display:flex;gap:14px;align-items:flex-start;background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:16px;transition:transform .25s,border-color .25s,background .25s}
+  .award:hover{transform:translateY(-4px);border-color:rgba(45,212,191,.5);background:var(--card2)}
   .ae{font-size:30px;line-height:1;flex-shrink:0}
-  .at{font-family:var(--disp);font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--mut)}
-  .am{font-size:15px;margin-top:4px}.am strong{color:var(--tx);font-weight:600}
-  .card{background:var(--card);border:1px solid var(--bd);border-radius:18px;padding:22px}
-  .card h3{font-family:var(--disp);font-weight:700;font-size:15px;margin-bottom:14px}
-  .svgchart{width:100%;height:auto;display:block}
-  .legend{display:flex;flex-wrap:wrap;gap:12px;margin-top:14px;justify-content:center}
-  .lg{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#cbd5e1}
-  .lg i{width:10px;height:10px;border-radius:3px;display:inline-block}
+  .at{font-family:Sora;font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--mut)}
+  .am{font-size:15px;margin-top:4px} .am strong{color:var(--tx);font-weight:600}
+  /* charts */
+  .card{background:var(--card);border:1px solid var(--bd);border-radius:18px;padding:22px;backdrop-filter:blur(8px)}
+  .card h3{font-family:Sora;font-weight:700;font-size:15px;margin-bottom:16px}
+  .chart-box{position:relative;height:340px}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .chart-box.sm{height:300px}
+  /* table */
   .tbl-wrap{overflow-x:auto;border:1px solid var(--bd);border-radius:18px}
   table{width:100%;border-collapse:collapse;font-size:14px}
   th,td{padding:13px 14px;text-align:left;white-space:nowrap}
   thead th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);font-weight:600;border-bottom:1px solid var(--bd);background:rgba(255,255,255,.02)}
-  tbody tr{border-bottom:1px solid rgba(255,255,255,.05)}tbody tr:last-child{border-bottom:none}
-  td.num{text-align:right;font-family:var(--mono)}
-  td.rank{color:var(--mut);font-family:var(--mono);font-weight:700;width:30px}
-  td.tname{font-weight:600}td.tk{font-family:var(--mono);color:var(--teal);font-size:12px}
-  .foot{margin-top:54px;color:var(--mut);font-size:12.5px;line-height:1.7;border-top:1px solid var(--bd);padding-top:22px}
+  tbody tr{border-bottom:1px solid rgba(255,255,255,.05)}
+  tbody tr:last-child{border-bottom:none}
+  tbody tr:hover{background:rgba(45,212,191,.05)}
+  td.num{text-align:right;font-family:'JetBrains Mono',monospace}
+  td.rank{color:var(--mut);font-family:'JetBrains Mono',monospace;font-weight:700;width:30px}
+  td.tname{font-weight:600} td.tk{font-family:'JetBrains Mono',monospace;color:var(--teal);font-size:12px}
+  .foot{margin-top:60px;color:var(--mut);font-size:12.5px;line-height:1.7;border-top:1px solid var(--bd);padding-top:24px}
   .foot strong{color:#aebbcf}
-  @media(max-width:720px){.grid2{grid-template-columns:1fr}.podium{grid-template-columns:1fr;align-items:stretch}.first .p-bar,.second .p-bar,.third .p-bar{height:42px}}
+  /* reveal */
+  .reveal{opacity:0;transform:translateY(22px);transition:opacity .6s ease,transform .6s ease}
+  .reveal.in{opacity:1;transform:none}
+  @media(max-width:720px){.grid2{grid-template-columns:1fr}.podium{grid-template-columns:1fr;align-items:stretch}.first .p-bar,.second .p-bar,.third .p-bar{height:44px}}
 </style>
 </head>
 <body>
-<div class="orb a"></div><div class="orb b"></div>
+<div class="orb a"></div><div class="orb b"></div><div class="orb c"></div>
 <div class="wrap">
   <header class="hero">
     <div class="emoji">🐺</div>
@@ -77,35 +98,53 @@
       <div class="chip"><span class="v">75</span><span class="l">Handelsdagar</span></div>
     </div>
   </header>
-  <section><div class="sec-title">🏆 Pallen</div><div class="podium"><div class="podium-col second">
+
+  <section>
+    <div class="sec-title">🏆 Pallen</div>
+    <div class="podium"><div class="podium-col second reveal">
         <div class="medal">🥈</div>
         <div class="p-name">Krasch och Cash</div>
         <div class="p-ret gain">+19.8 %</div>
         <div class="p-val">1 198 067 kr</div>
         <div class="p-bar"><span>#2</span></div>
-      </div><div class="podium-col first">
+      </div><div class="podium-col first reveal">
         <div class="medal">🥇</div>
         <div class="p-name">ATM Capital</div>
         <div class="p-ret gain">+51.4 %</div>
         <div class="p-val">1 513 561 kr</div>
         <div class="p-bar"><span>#1</span></div>
-      </div><div class="podium-col third">
+      </div><div class="podium-col third reveal">
         <div class="medal">🥉</div>
         <div class="p-name">Spenderarna</div>
         <div class="p-ret gain">+18.0 %</div>
         <div class="p-val">1 180 073 kr</div>
         <div class="p-bar"><span>#3</span></div>
-      </div></div></section>
-  <section><div class="sec-title">📈 Loppet — portföljvärde över tid</div><div class="card"><svg class="svgchart" viewBox="0 0 920 380" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Portföljvärde över tid"><line x1="56" y1="334.0" x2="904" y2="334.0" stroke="rgba(148,163,184,.12)"/><text x="48" y="337.0" text-anchor="end" fill="#7c8aa3" font-size="11">448k</text><line x1="56" y1="254.0" x2="904" y2="254.0" stroke="rgba(148,163,184,.12)"/><text x="48" y="257.0" text-anchor="end" fill="#7c8aa3" font-size="11">741k</text><line x1="56" y1="174.0" x2="904" y2="174.0" stroke="rgba(148,163,184,.12)"/><text x="48" y="177.0" text-anchor="end" fill="#7c8aa3" font-size="11">1033k</text><line x1="56" y1="94.0" x2="904" y2="94.0" stroke="rgba(148,163,184,.12)"/><text x="48" y="97.0" text-anchor="end" fill="#7c8aa3" font-size="11">1326k</text><line x1="56" y1="14.0" x2="904" y2="14.0" stroke="rgba(148,163,184,.12)"/><text x="48" y="17.0" text-anchor="end" fill="#7c8aa3" font-size="11">1619k</text><line x1="56" y1="183.1" x2="904" y2="183.1" stroke="#94a3b8" stroke-dasharray="4 4" stroke-width="1" opacity=".5"/><line x1="56" y1="14" x2="56" y2="334" stroke="rgba(148,163,184,.2)"/><line x1="56" y1="334" x2="904" y2="334" stroke="rgba(148,163,184,.2)"/><text x="56.0" y="354" text-anchor="middle" fill="#7c8aa3" font-size="11">03-09</text><text x="170.6" y="354" text-anchor="middle" fill="#7c8aa3" font-size="11">03-19</text><text x="285.2" y="354" text-anchor="middle" fill="#7c8aa3" font-size="11">03-29</text><text x="399.8" y="354" text-anchor="middle" fill="#7c8aa3" font-size="11">04-08</text><text x="514.4" y="354" text-anchor="middle" fill="#7c8aa3" font-size="11">04-18</text><text x="629.0" y="354" text-anchor="middle" fill="#7c8aa3" font-size="11">04-28</text><text x="743.6" y="354" text-anchor="middle" fill="#7c8aa3" font-size="11">05-08</text><text x="858.2" y="354" text-anchor="middle" fill="#7c8aa3" font-size="11">05-18</text><polyline points="67.5,183.1 78.9,184.2 90.4,174.3 101.8,170.6 113.3,170.6 136.2,172.4 147.7,169.3 159.1,175.5 170.6,144.3 182.1,149.4 205.0,151.1 216.4,142.9 227.9,143.2 239.4,141.5 250.8,142.5 262.3,144.5 273.7,144.5 296.6,143.8 308.1,143.0 319.6,141.4 331.0,142.5 342.5,142.1 353.9,142.1 365.4,142.1 376.9,141.7 388.3,142.9 399.8,127.4 411.2,127.3 422.7,124.3 434.2,124.3 445.6,124.3 457.1,126.9 468.5,177.4 480.0,176.2 491.5,174.3 502.9,167.8 514.4,167.8 525.8,168.2 537.3,172.5 548.8,118.4 560.2,107.9 571.7,109.3 583.1,106.8 594.6,106.8 606.1,106.8 617.5,107.9 629.0,109.8 640.4,109.3 651.9,111.1 663.4,111.1 674.8,109.4 686.3,109.4 697.7,108.3 709.2,108.1 720.6,31.1 732.1,62.1 743.6,64.5 755.0,64.5 766.5,64.2 777.9,97.4 789.4,69.7 800.9,66.8 812.3,66.8 823.8,65.4 835.2,65.4 846.7,65.4 858.2,62.0 869.6,63.9 881.1,68.0 892.5,60.6 904.0,42.7" fill="none" stroke="#34d399" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/><polyline points="90.4,183.1 101.8,183.1 159.1,183.0 170.6,183.9 182.1,185.4 193.5,185.4 216.4,188.2 250.8,183.2 262.3,186.1 296.6,186.8 308.1,186.2 319.6,184.8 331.0,185.1 342.5,185.1 353.9,182.7 365.4,182.7 376.9,182.7 388.3,182.5 399.8,184.0 411.2,183.7 422.7,181.3 434.2,181.3 445.6,181.4 457.1,181.3 468.5,183.2 480.0,177.7 491.5,174.0 502.9,174.1 514.4,174.1 525.8,173.3 537.3,172.1 548.8,170.6 560.2,167.8 571.7,162.3 583.1,160.4 594.6,160.4 606.1,160.4 617.5,158.6 629.0,164.4 640.4,162.5 651.9,163.8 663.4,163.8 674.8,163.8 686.3,163.8 697.7,161.7 709.2,163.1 720.6,151.5 732.1,148.9 743.6,144.7 755.0,142.7 766.5,142.7 777.9,142.2 789.4,145.0 800.9,141.2 812.3,140.4 823.8,136.4 835.2,136.4 846.7,141.9 858.2,137.7 869.6,137.6 881.1,134.7 892.5,134.7 904.0,129.0" fill="none" stroke="#60a5fa" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/><polyline points="67.5,183.1 90.4,183.7 101.8,183.8 124.8,185.7 136.2,185.5 147.7,186.7 159.1,249.8 170.6,237.3 182.1,239.9 216.4,230.6 227.9,315.0 239.4,311.2 250.8,311.0 262.3,314.3 273.7,314.2 296.6,316.3 308.1,316.9 319.6,311.8 331.0,305.0 342.5,305.0 353.9,303.0 365.4,303.0 376.9,303.0 388.3,303.9 399.8,245.9 411.2,247.2 422.7,250.1 434.2,250.6 445.6,250.6 457.1,250.6 468.5,218.1 480.0,184.7 491.5,180.7 502.9,178.6 514.4,178.4 525.8,175.8 537.3,179.5 548.8,196.7 560.2,180.1 571.7,178.6 583.1,176.0 594.6,176.0 606.1,176.0 617.5,177.2 629.0,181.1 640.4,174.9 651.9,173.3 663.4,172.2 674.8,172.2 686.3,172.2 697.7,172.5 709.2,175.0 720.6,156.3 732.1,153.9 743.6,146.0 755.0,144.8 766.5,144.8 777.9,138.2 789.4,143.7 800.9,140.9 812.3,135.3 823.8,132.1 835.2,132.1 846.7,142.5 858.2,146.4 869.6,147.6 881.1,141.7 892.5,145.4 904.0,133.9" fill="none" stroke="#f472b6" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/><polyline points="67.5,183.1 90.4,183.1 147.7,182.0 159.1,184.4 182.1,189.2 308.1,190.9 319.6,253.2 331.0,184.2 342.5,184.2 353.9,185.0 365.4,185.0 376.9,185.0 388.3,185.8 399.8,183.5 411.2,184.0 422.7,183.9 434.2,183.9 445.6,184.7 457.1,184.6 468.5,179.1 480.0,175.6 491.5,175.1 502.9,173.7 514.4,170.0 525.8,170.0 537.3,171.5 548.8,171.6 560.2,171.4 571.7,171.4 583.1,171.8 594.6,172.1 606.1,172.1 617.5,172.0 629.0,170.2 640.4,171.0 651.9,170.3 663.4,170.3 674.8,170.3 686.3,170.3 697.7,168.5 709.2,169.9 720.6,164.8 732.1,165.0 743.6,164.8 755.0,164.8 766.5,164.8 777.9,163.8 789.4,161.3 800.9,161.8 812.3,161.8 823.8,161.5 835.2,161.5 846.7,161.5 858.2,161.8 869.6,161.0 881.1,164.3 892.5,164.4 904.0,165.3" fill="none" stroke="#fbbf24" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/><polyline points="90.4,183.1 170.6,183.1 216.4,183.2 319.6,183.6 331.0,183.6 342.5,183.6 353.9,183.6 365.4,183.6 376.9,183.6 388.3,183.6 399.8,180.9 411.2,180.9 422.7,180.9 434.2,180.9 445.6,180.9 457.1,180.9 468.5,180.9 480.0,180.6 491.5,180.6 502.9,178.9 514.4,178.9 525.8,178.5 537.3,178.8 548.8,175.1 560.2,175.7 571.7,175.9 583.1,176.5 594.6,176.5 606.1,176.5 617.5,176.0 629.0,175.9 640.4,176.5 651.9,177.4 663.4,177.4 674.8,177.4 686.3,177.4 697.7,177.4 709.2,177.4 720.6,177.4 732.1,177.4 743.6,177.4 755.0,177.4 766.5,177.4 777.9,177.4 789.4,177.4 800.9,177.4 812.3,177.4 823.8,177.4 835.2,177.4 846.7,177.4 858.2,177.4 869.6,177.4 881.1,177.4 892.5,177.4 904.0,177.4" fill="none" stroke="#a78bfa" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/><polyline points="56.0,183.1 67.5,183.1 78.9,183.1 90.4,183.1 101.8,182.5 113.3,184.4 124.8,178.8 136.2,176.9 147.7,176.9 216.4,266.0 227.9,268.3 239.4,173.4 250.8,175.9 262.3,174.7 273.7,174.7 285.2,174.7 296.6,178.5 319.6,174.7 331.0,175.9 342.5,175.9 353.9,175.9 365.4,175.9 376.9,175.9 388.3,185.8 399.8,203.4 411.2,201.3 422.7,207.1 434.2,207.1 445.6,207.1 457.1,206.7 468.5,209.5 480.0,208.4 491.5,207.1 502.9,207.1 514.4,215.5 525.8,215.5 537.3,217.6 548.8,217.6 560.2,217.6 571.7,217.6 583.1,217.6 594.6,217.6 606.1,217.6 617.5,217.6 629.0,217.6 640.4,217.6 651.9,217.6 663.4,217.6 674.8,217.6 686.3,217.6 697.7,217.6 709.2,217.6 720.6,217.3 732.1,212.4 743.6,220.1 755.0,220.1 766.5,220.1 777.9,215.7 789.4,217.7 800.9,217.7 812.3,217.7 823.8,231.8 835.2,231.8 846.7,231.8 858.2,231.8 869.6,226.0 881.1,175.7 892.5,174.5 904.0,193.9" fill="none" stroke="#fb923c" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/><polyline points="56.0,183.1 67.5,183.1 136.2,183.1 147.7,183.1 159.1,182.6 170.6,186.1 182.1,186.1 216.4,185.7 388.3,185.9 399.8,181.4 411.2,182.7 422.7,182.7 434.2,182.7 445.6,181.4 457.1,181.4 468.5,179.3 480.0,178.8 491.5,182.4 502.9,182.4 514.4,183.8 525.8,183.8 537.3,182.7 548.8,181.5 560.2,182.3 571.7,185.6 583.1,190.3 594.6,189.0 606.1,189.0 617.5,188.5 629.0,188.3 640.4,188.9 651.9,188.1 663.4,188.1 674.8,188.1 686.3,188.1 697.7,188.6 709.2,191.2 720.6,182.6 732.1,186.7 743.6,190.3 755.0,190.3 766.5,190.3 777.9,188.6 789.4,189.1 800.9,189.7 812.3,189.7 823.8,189.7 835.2,189.7 846.7,189.7 858.2,188.5 869.6,188.5 881.1,207.1 892.5,207.1 904.0,207.1" fill="none" stroke="#22d3ee" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/></svg><div class="legend"><span class="lg"><i style="background:#34d399"></i>ATM Capital</span><span class="lg"><i style="background:#60a5fa"></i>Krasch och Cash</span><span class="lg"><i style="background:#f472b6"></i>Spenderarna</span><span class="lg"><i style="background:#fbbf24"></i>Bull &amp; Bär </span><span class="lg"><i style="background:#a78bfa"></i>HoljeHajarna</span><span class="lg"><i style="background:#fb923c"></i>Hjort är 🦌 </span><span class="lg"><i style="background:#22d3ee"></i>SMS CALpital</span></div></div></section>
-  <section><div class="sec-title">🎖️ Roliga utmärkelser</div><div class="awards"><div class="award"><div class="ae">🥇</div><div class="ab"><div class="at">Wolf of Södergatan (vinnaren)</div><div class="am"><strong>ATM Capital</strong> — 1 513 561 kr (+51.4 %)</div></div></div><div class="award"><div class="ae">🪙</div><div class="ab"><div class="at">Tröstpriset (sist)</div><div class="am"><strong>SMS CALpital</strong> — 912 081 kr (-8.8 %)</div></div></div><div class="award"><div class="ae">⚡</div><div class="ab"><div class="at">Daytradern (flest affärer)</div><div class="am"><strong>ATM Capital</strong> — 86 affärer</div></div></div><div class="award"><div class="ae">🦥</div><div class="ab"><div class="at">Diamantnävarna (färst affärer)</div><div class="am"><strong>HoljeHajarna</strong> — bara 11 affärer</div></div></div><div class="award"><div class="ae">💸</div><div class="ab"><div class="at">Storspelaren (störst omsättning)</div><div class="am"><strong>ATM Capital</strong> — 16 852 133 kr omsatt</div></div></div><div class="award"><div class="ae">🌈</div><div class="ab"><div class="at">Diversifieraren (flest olika aktier)</div><div class="am"><strong>ATM Capital</strong> — 23 olika aktier</div></div></div><div class="award"><div class="ae">🎯</div><div class="ab"><div class="at">All-in (färst olika aktier)</div><div class="am"><strong>HoljeHajarna</strong> — bara 4 olika aktier</div></div></div><div class="award"><div class="ae">🎰</div><div class="ab"><div class="at">Träffsäkraste (bäst vinstrate)</div><div class="am"><strong>ATM Capital</strong> — 62 % vinnande affärer (28/45)</div></div></div><div class="award"><div class="ae">🐻</div><div class="ab"><div class="at">Björnen (flest blankningar)</div><div class="am"><strong>ATM Capital</strong> — 7 blankningar</div></div></div><div class="award"><div class="ae">🚀</div><div class="ab"><div class="at">Bästa enskilda affären</div><div class="am"><strong>ATM Capital</strong> på Silex Microsystems AB (SILEX.ST) — 84 940 kr</div></div></div><div class="award"><div class="ae">💀</div><div class="ab"><div class="at">Värsta enskilda affären</div><div class="am"><strong>Hjort är 🦌 </strong> på Kosmos Energy Ltd. (KOS) — −83 226 kr</div></div></div><div class="award"><div class="ae">🐘</div><div class="ab"><div class="at">Största ordern</div><div class="am"><strong>ATM Capital</strong> — sell 1 000 WDAY för 1 202 872 kr</div></div></div><div class="award"><div class="ae">👑</div><div class="ab"><div class="at">Mest tid i ledning</div><div class="am"><strong>ATM Capital</strong> — ledde 67 av 75 dagar</div></div></div><div class="award"><div class="ae">🎢</div><div class="ab"><div class="at">Berg-och-dalbanan (högst volatilitet)</div><div class="am"><strong>Hjort är 🦌 </strong> — 7.9 % daglig volatilitet</div></div></div><div class="award"><div class="ae">🧘</div><div class="ab"><div class="at">Lugnast i stormen (lägst volatilitet)</div><div class="am"><strong>HoljeHajarna</strong> — 0.2 % daglig volatilitet</div></div></div><div class="award"><div class="ae">📉</div><div class="ab"><div class="at">Störst ras (max drawdown)</div><div class="am"><strong>Spenderarna</strong> — -48.9 % från topp</div></div></div><div class="award"><div class="ae">☀️</div><div class="ab"><div class="at">Bästa enskilda dagen</div><div class="am"><strong>Hjort är 🦌 </strong> — +50.5 % den 2026-03-25</div></div></div><div class="award"><div class="ae">🌧️</div><div class="ab"><div class="at">Värsta enskilda dagen</div><div class="am"><strong>Spenderarna</strong> — -37.4 % den 2026-03-24</div></div></div><div class="award"><div class="ae">🤹</div><div class="ab"><div class="at">Snabbaste fingret (kortaste innehav)</div><div class="am"><strong>Hjort är 🦌 </strong> — köpte &amp; sålde SIVE.ST inom 2 min</div></div></div><div class="award"><div class="ae">😴</div><div class="ab"><div class="at">Tappade sugen först</div><div class="am"><strong>HoljeHajarna</strong> — sista affären redan 2026-04-21</div></div></div><div class="award"><div class="ae">❤️</div><div class="ab"><div class="at">Tävlingens favoritaktie</div><div class="am"><strong>Sivers Semiconductors AB</strong> (SIVE.ST) — handlad 27 gånger</div></div></div><div class="award"><div class="ae">🏅</div><div class="ab"><div class="at">Vinnaraktien (mest realiserad vinst totalt)</div><div class="am"><strong>Angler Gaming Plc</strong> (ANGL.ST) — 188 342 kr</div></div></div><div class="award"><div class="ae">🥀</div><div class="ab"><div class="at">Förloraraktien (mest realiserad förlust totalt)</div><div class="am"><strong>Kosmos Energy Ltd.</strong> (KOS) — −83 226 kr</div></div></div></div></section>
-  <section><div class="grid2">
-    <div class="card"><h3>Avkastning per lag</h3><svg class="svgchart" viewBox="0 0 920 254" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Avkastning per lag"><line x1="254.4" y1="8" x2="254.4" y2="246" stroke="rgba(148,163,184,.25)"/><text x="140" y="26" text-anchor="end" fill="#cbd5e1" font-size="12">ATM Capital</text><rect x="254.4" y="14" width="609.6" height="16" rx="4" fill="#22c55e"/><text x="870.0" y="26" text-anchor="start" fill="#22c55e" font-size="11" font-weight="600">+51.4%</text><text x="140" y="60" text-anchor="end" fill="#cbd5e1" font-size="12">Krasch och Cash</text><rect x="254.4" y="48" width="234.8" height="16" rx="4" fill="#22c55e"/><text x="495.2" y="60" text-anchor="start" fill="#22c55e" font-size="11" font-weight="600">+19.8%</text><text x="140" y="94" text-anchor="end" fill="#cbd5e1" font-size="12">Spenderarna</text><rect x="254.4" y="82" width="213.5" height="16" rx="4" fill="#22c55e"/><text x="473.9" y="94" text-anchor="start" fill="#22c55e" font-size="11" font-weight="600">+18%</text><text x="140" y="128" text-anchor="end" fill="#cbd5e1" font-size="12">Bull &amp; Bär </text><rect x="254.4" y="116" width="77.1" height="16" rx="4" fill="#22c55e"/><text x="337.5" y="128" text-anchor="start" fill="#22c55e" font-size="11" font-weight="600">+6.5%</text><text x="140" y="162" text-anchor="end" fill="#cbd5e1" font-size="12">HoljeHajarna</text><rect x="254.4" y="150" width="24.9" height="16" rx="4" fill="#22c55e"/><text x="285.3" y="162" text-anchor="start" fill="#22c55e" font-size="11" font-weight="600">+2.1%</text><text x="140" y="196" text-anchor="end" fill="#cbd5e1" font-size="12">Hjort är 🦌 </text><rect x="208.1" y="184" width="46.3" height="16" rx="4" fill="#ef4444"/><text x="202.1" y="196" text-anchor="end" fill="#ef4444" font-size="11" font-weight="600">-3.9%</text><text x="140" y="230" text-anchor="end" fill="#cbd5e1" font-size="12">SMS CALpital</text><rect x="150.0" y="218" width="104.4" height="16" rx="4" fill="#ef4444"/><text x="144.0" y="230" text-anchor="end" fill="#ef4444" font-size="11" font-weight="600">-8.8%</text></svg></div>
-    <div class="card"><h3>Mest handlade aktier</h3><svg class="svgchart" viewBox="0 0 920 300" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Mest handlade aktier"><line x1="34" y1="226.0" x2="910" y2="226.0" stroke="rgba(148,163,184,.12)"/><text x="28" y="229.0" text-anchor="end" fill="#7c8aa3" font-size="10">0</text><line x1="34" y1="172.0" x2="910" y2="172.0" stroke="rgba(148,163,184,.12)"/><text x="28" y="175.0" text-anchor="end" fill="#7c8aa3" font-size="10">7</text><line x1="34" y1="118.0" x2="910" y2="118.0" stroke="rgba(148,163,184,.12)"/><text x="28" y="121.0" text-anchor="end" fill="#7c8aa3" font-size="10">14</text><line x1="34" y1="64.0" x2="910" y2="64.0" stroke="rgba(148,163,184,.12)"/><text x="28" y="67.0" text-anchor="end" fill="#7c8aa3" font-size="10">20</text><line x1="34" y1="10.0" x2="910" y2="10.0" stroke="rgba(148,163,184,.12)"/><text x="28" y="13.0" text-anchor="end" fill="#7c8aa3" font-size="10">27</text><rect x="47.9" y="10.0" width="45.3" height="216.0" rx="4" fill="#2dd4bf"/><text x="70.5" y="240" fill="#7c8aa3" font-size="10" text-anchor="end" transform="rotate(-45 70.5 240)">SIVE.ST</text><rect x="120.9" y="106.0" width="45.3" height="120.0" rx="4" fill="#2dd4bf"/><text x="143.5" y="240" fill="#7c8aa3" font-size="10" text-anchor="end" transform="rotate(-45 143.5 240)">AMD</text><rect x="193.9" y="114.0" width="45.3" height="112.0" rx="4" fill="#2dd4bf"/><text x="216.5" y="240" fill="#7c8aa3" font-size="10" text-anchor="end" transform="rotate(-45 216.5 240)">MINEST.ST</text><rect x="266.9" y="138.0" width="45.3" height="88.0" rx="4" fill="#2dd4bf"/><text x="289.5" y="240" fill="#7c8aa3" font-size="10" text-anchor="end" transform="rotate(-45 289.5 240)">NVDA</text><rect x="339.9" y="138.0" width="45.3" height="88.0" rx="4" fill="#2dd4bf"/><text x="362.5" y="240" fill="#7c8aa3" font-size="10" text-anchor="end" transform="rotate(-45 362.5 240)">SWED-A.ST</text><rect x="412.9" y="154.0" width="45.3" height="72.0" rx="4" fill="#2dd4bf"/><text x="435.5" y="240" fill="#7c8aa3" font-size="10" text-anchor="end" transform="rotate(-45 435.5 240)">VOLV-B.ST</text><rect x="485.9" y="154.0" width="45.3" height="72.0" rx="4" fill="#2dd4bf"/><text x="508.5" y="240" fill="#7c8aa3" font-size="10" text-anchor="end" transform="rotate(-45 508.5 240)">KINV-B.ST</text><rect x="558.9" y="162.0" width="45.3" height="64.0" rx="4" fill="#2dd4bf"/><text x="581.5" y="240" fill="#7c8aa3" font-size="10" text-anchor="end" transform="rotate(-45 581.5 240)">PLTR</text><rect x="631.9" y="178.0" width="45.3" height="48.0" rx="4" fill="#2dd4bf"/><text x="654.5" y="240" fill="#7c8aa3" font-size="10" text-anchor="end" transform="rotate(-45 654.5 240)">EQT.ST</text><rect x="704.9" y="178.0" width="45.3" height="48.0" rx="4" fill="#2dd4bf"/><text x="727.5" y="240" fill="#7c8aa3" font-size="10" text-anchor="end" transform="rotate(-45 727.5 240)">MASHUP.ST</text><rect x="777.9" y="178.0" width="45.3" height="48.0" rx="4" fill="#2dd4bf"/><text x="800.5" y="240" fill="#7c8aa3" font-size="10" text-anchor="end" transform="rotate(-45 800.5 240)">SKIS-B.ST</text><rect x="850.9" y="178.0" width="45.3" height="48.0" rx="4" fill="#2dd4bf"/><text x="873.5" y="240" fill="#7c8aa3" font-size="10" text-anchor="end" transform="rotate(-45 873.5 240)">TSLA</text></svg></div>
-  </div></section>
-  <section><div class="sec-title">📊 Alla lag</div>
-    <div class="tbl-wrap"><table>
-      <thead><tr><th>#</th><th>Lag</th><th style="text-align:right">Slutvärde</th><th style="text-align:right">Avkastning</th><th style="text-align:right">Affärer</th><th style="text-align:right">Real. P&amp;L</th><th style="text-align:right">Träff%</th><th style="text-align:right">Aktier</th><th>Favorit</th></tr></thead>
-      <tbody><tr>
+      </div></div>
+  </section>
+
+  <section>
+    <div class="sec-title">📈 Loppet — portföljvärde över tid</div>
+    <div class="card reveal"><div class="chart-box"><canvas id="raceChart"></canvas></div></div>
+  </section>
+
+  <section>
+    <div class="sec-title">🎖️ Roliga utmärkelser</div>
+    <div class="awards"><div class="award reveal"><div class="ae">🥇</div><div class="ab"><div class="at">Wolf of Södergatan (vinnaren)</div><div class="am"><strong>ATM Capital</strong> — 1 513 561 kr (+51.4 %)</div></div></div><div class="award reveal"><div class="ae">🪙</div><div class="ab"><div class="at">Tröstpriset (sist)</div><div class="am"><strong>SMS CALpital</strong> — 912 081 kr (-8.8 %)</div></div></div><div class="award reveal"><div class="ae">⚡</div><div class="ab"><div class="at">Daytradern (flest affärer)</div><div class="am"><strong>ATM Capital</strong> — 86 affärer</div></div></div><div class="award reveal"><div class="ae">🦥</div><div class="ab"><div class="at">Diamantnävarna (färst affärer)</div><div class="am"><strong>HoljeHajarna</strong> — bara 11 affärer</div></div></div><div class="award reveal"><div class="ae">💸</div><div class="ab"><div class="at">Storspelaren (störst omsättning)</div><div class="am"><strong>ATM Capital</strong> — 16 852 133 kr omsatt</div></div></div><div class="award reveal"><div class="ae">🌈</div><div class="ab"><div class="at">Diversifieraren (flest olika aktier)</div><div class="am"><strong>ATM Capital</strong> — 23 olika aktier</div></div></div><div class="award reveal"><div class="ae">🎯</div><div class="ab"><div class="at">All-in (färst olika aktier)</div><div class="am"><strong>HoljeHajarna</strong> — bara 4 olika aktier</div></div></div><div class="award reveal"><div class="ae">🎰</div><div class="ab"><div class="at">Träffsäkraste (bäst vinstrate)</div><div class="am"><strong>ATM Capital</strong> — 62 % vinnande affärer (28/45)</div></div></div><div class="award reveal"><div class="ae">🐻</div><div class="ab"><div class="at">Björnen (flest blankningar)</div><div class="am"><strong>ATM Capital</strong> — 7 blankningar</div></div></div><div class="award reveal"><div class="ae">🚀</div><div class="ab"><div class="at">Bästa enskilda affären</div><div class="am"><strong>ATM Capital</strong> på Silex Microsystems AB (SILEX.ST) — 84 940 kr</div></div></div><div class="award reveal"><div class="ae">💀</div><div class="ab"><div class="at">Värsta enskilda affären</div><div class="am"><strong>Hjort är 🦌 </strong> på Kosmos Energy Ltd. (KOS) — −83 226 kr</div></div></div><div class="award reveal"><div class="ae">🐘</div><div class="ab"><div class="at">Största ordern</div><div class="am"><strong>ATM Capital</strong> — sell 1 000 WDAY för 1 202 872 kr</div></div></div><div class="award reveal"><div class="ae">👑</div><div class="ab"><div class="at">Mest tid i ledning</div><div class="am"><strong>ATM Capital</strong> — ledde 67 av 75 dagar</div></div></div><div class="award reveal"><div class="ae">🎢</div><div class="ab"><div class="at">Berg-och-dalbanan (högst volatilitet)</div><div class="am"><strong>Hjort är 🦌 </strong> — 7.9 % daglig volatilitet</div></div></div><div class="award reveal"><div class="ae">🧘</div><div class="ab"><div class="at">Lugnast i stormen (lägst volatilitet)</div><div class="am"><strong>HoljeHajarna</strong> — 0.2 % daglig volatilitet</div></div></div><div class="award reveal"><div class="ae">📉</div><div class="ab"><div class="at">Störst ras (max drawdown)</div><div class="am"><strong>Spenderarna</strong> — -48.9 % från topp</div></div></div><div class="award reveal"><div class="ae">☀️</div><div class="ab"><div class="at">Bästa enskilda dagen</div><div class="am"><strong>Hjort är 🦌 </strong> — +50.5 % den 2026-03-25</div></div></div><div class="award reveal"><div class="ae">🌧️</div><div class="ab"><div class="at">Värsta enskilda dagen</div><div class="am"><strong>Spenderarna</strong> — -37.4 % den 2026-03-24</div></div></div><div class="award reveal"><div class="ae">🤹</div><div class="ab"><div class="at">Snabbaste fingret (kortaste innehav)</div><div class="am"><strong>Hjort är 🦌 </strong> — köpte &amp; sålde SIVE.ST inom 2 min</div></div></div><div class="award reveal"><div class="ae">😴</div><div class="ab"><div class="at">Tappade sugen först</div><div class="am"><strong>HoljeHajarna</strong> — sista affären redan 2026-04-21</div></div></div><div class="award reveal"><div class="ae">❤️</div><div class="ab"><div class="at">Tävlingens favoritaktie</div><div class="am"><strong>Sivers Semiconductors AB</strong> (SIVE.ST) — handlad 27 gånger</div></div></div><div class="award reveal"><div class="ae">🏅</div><div class="ab"><div class="at">Vinnaraktien (mest realiserad vinst totalt)</div><div class="am"><strong>Angler Gaming Plc</strong> (ANGL.ST) — 188 342 kr</div></div></div><div class="award reveal"><div class="ae">🥀</div><div class="ab"><div class="at">Förloraraktien (mest realiserad förlust totalt)</div><div class="am"><strong>Kosmos Energy Ltd.</strong> (KOS) — −83 226 kr</div></div></div></div>
+  </section>
+
+  <section>
+    <div class="grid2">
+      <div class="card reveal"><h3>Avkastning per lag</h3><div class="chart-box sm"><canvas id="returnsChart"></canvas></div></div>
+      <div class="card reveal"><h3>Mest handlade aktier</h3><div class="chart-box sm"><canvas id="stocksChart"></canvas></div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-title">📊 Alla lag</div>
+    <div class="tbl-wrap reveal">
+      <table>
+        <thead><tr><th>#</th><th>Lag</th><th style="text-align:right">Slutvärde</th><th style="text-align:right">Avkastning</th><th style="text-align:right">Affärer</th><th style="text-align:right">Real. P&amp;L</th><th style="text-align:right">Träff%</th><th style="text-align:right">Aktier</th><th>Favorit</th></tr></thead>
+        <tbody><tr>
         <td class="rank">1</td>
         <td class="tname">ATM Capital</td>
         <td class="num">1 513 561 kr</td>
@@ -176,9 +215,56 @@
         <td class="num">7</td>
         <td class="tk">SWED-A.ST ×3</td>
       </tr></tbody>
-    </table></div>
+      </table>
+    </div>
   </section>
-  <div class="foot"><strong>Metod &amp; förbehåll.</strong> Slutställning, omsättning, antal affärer och aktiestatistik kommer från handelsdatan och är tillförlitliga. Realiserad P&amp;L är beräknad per stängande affär med snittkostnad. Slutvärde = sista dagliga snapshot (cash + holdings). Volatilitet, drawdown och bästa/sämsta dag bygger på dagliga snapshots som är något inkonsekventa — rätt lag hamnar rätt, men exakta dagsprocent är ungefärliga.<br><br>Genererad 2026-05-27 19:04 · 295 affärer · 451 snapshots.</div>
+
+  <div class="foot">
+    <strong>Metod &amp; förbehåll.</strong> Slutställning, omsättning, antal affärer och aktiestatistik kommer från <code>trades</code>-tabellen och är tillförlitliga.
+    Realiserad P&amp;L är beräknad per stängande affär med snittkostnad (long &amp; short separat). Slutvärde = sista dagliga snapshot (cash + holdings).
+    Volatilitet, drawdown och bästa/sämsta dag bygger på dagliga snapshots som är något inkonsekventa — rätt lag hamnar rätt, men exakta dagsprocent är ungefärliga.
+    <br><br>Genererad 2026-05-27 19:08 · 295 affärer · 451 snapshots.
+  </div>
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.4/dist/confetti.browser.min.js"></script>
+<script>const CHART = {"dates":["2026-03-09","2026-03-10","2026-03-11","2026-03-12","2026-03-13","2026-03-14","2026-03-15","2026-03-16","2026-03-17","2026-03-18","2026-03-19","2026-03-20","2026-03-21","2026-03-22","2026-03-23","2026-03-24","2026-03-25","2026-03-26","2026-03-27","2026-03-28","2026-03-29","2026-03-30","2026-03-31","2026-04-01","2026-04-02","2026-04-03","2026-04-04","2026-04-05","2026-04-06","2026-04-07","2026-04-08","2026-04-09","2026-04-10","2026-04-11","2026-04-12","2026-04-13","2026-04-14","2026-04-15","2026-04-16","2026-04-17","2026-04-18","2026-04-19","2026-04-20","2026-04-21","2026-04-22","2026-04-23","2026-04-24","2026-04-25","2026-04-26","2026-04-27","2026-04-28","2026-04-29","2026-04-30","2026-05-01","2026-05-02","2026-05-03","2026-05-04","2026-05-05","2026-05-06","2026-05-07","2026-05-08","2026-05-09","2026-05-10","2026-05-11","2026-05-12","2026-05-13","2026-05-14","2026-05-15","2026-05-16","2026-05-17","2026-05-18","2026-05-19","2026-05-20","2026-05-21","2026-05-22"],"initial":1000000,"race":[{"name":"ATM Capital","color":"#34d399","data":[null,1000066,995997,1032244,1045917,1045917,null,1039220,1050538,1027899,1141872,1123268,null,1117121,1147133,1146083,1152379,1148457,1141207,1141207,null,1143760,1146611,1152622,1148445,1150124,1150128,1150128,1151571,1146980,1203925,1204156,1215308,1215025,1215025,1205592,1020808,1025381,1032407,1055923,1055923,1054474,1038910,1236608,1275290,1270206,1279162,1279162,1279162,1275335,1268099,1270050,1263305,1263305,1269757,1269757,1273818,1274496,1555975,1442626,1433867,1433867,1434855,1313571,1414774,1425651,1425651,1430688,1430688,1430688,1442937,1436082,1421270,1448060,1513561]},{"name":"Krasch och Cash","color":"#60a5fa","data":[null,null,null,1000000,1000000,null,null,null,null,1000398,997192,991467,991467,null,981523,null,null,999699,989106,null,null,986431,988546,993797,992873,992873,1001606,1001606,1001606,1002150,996763,997958,1006481,1006481,1006204,1006640,999708,1019713,1033385,1033089,1033089,1035816,1040277,1045720,1056023,1076021,1083205,1082944,1082944,1089603,1068285,1075555,1070673,1070673,1070747,1070747,1078194,1073229,1115653,1125113,1140365,1147846,1147846,1149796,1139273,1153459,1156179,1171062,1171062,1150857,1166169,1166485,1177103,1176965,1198067]},{"name":"Spenderarna","color":"#f472b6","data":[null,1000000,null,997739,997550,null,990670,991152,986879,756034,801793,792350,null,null,826323,517437,531253,532205,519923,520390,null,512757,510695,529336,554049,554049,561413,561413,561413,558038,770111,765496,754752,753072,753261,753262,872144,994370,1008792,1016394,1017146,1026702,1013338,950278,1011062,1016596,1026120,1026120,1026120,1021661,1007271,1030070,1035826,1039782,1039782,1039782,1038872,1029829,1097925,1106688,1135614,1140200,1140200,1164227,1144277,1154455,1174813,1186587,1186587,1148477,1134416,1129738,1151385,1138054,1180073]},{"name":"Bull & Bär ","color":"#fbbf24","data":[null,1000000,null,1000000,null,null,null,null,1004036,995183,null,977605,null,null,null,null,null,null,null,null,null,null,971540,743711,995977,995977,993092,993092,993092,990062,998555,996618,997172,997172,994021,994732,1014591,1027487,1029243,1034578,1048004,1048004,1042496,1042095,1042938,1042762,1041367,1040468,1040468,1040654,1047123,1044184,1046727,1046727,1046727,1046727,1053357,1048174,1066897,1066427,1066964,1066964,1066964,1070787,1079909,1077968,1077968,1079178,1079178,1079178,1078062,1080869,1068964,1068493,1065315]},{"name":"HoljeHajarna","color":"#a78bfa","data":[null,null,null,1000000,null,null,null,null,null,null,1000000,null,null,null,999794,null,null,null,null,null,null,null,null,998112,998362,998362,998362,998362,998362,998362,1008178,1008178,1008178,1008178,1008178,1008178,1008178,1009163,1009103,1015239,1015239,1016907,1015882,1029312,1026994,1026420,1024370,1024370,1024370,1025846,1026215,1024247,1020762,1020762,1020762,1020762,1020762,1020762,1020762,1020762,1020762,1020762,1020762,1020762,1020762,1020762,1020762,1020762,1020762,1020762,1020762,1020762,1020762,1020762,1020762]},{"name":"Hjort är 🦌 ","color":"#fb923c","data":[1000000,999999,999997,999998,1002312,995289,1015850,1022833,1022834,null,null,null,null,null,696888,688169,1035454,1026244,1030849,1030849,1030849,1017034,null,1030849,1026244,1026244,1026244,1026244,1026244,990271,925771,933421,912271,912271,912271,913621,903307,907393,912406,912388,881608,881608,873934,873934,873934,873934,873934,873934,873934,873934,873934,873934,873934,873934,873934,873934,873934,873934,874934,893030,864762,864762,864762,880668,873468,873468,873468,821868,821868,821868,821868,843236,1026957,1031575,960572]},{"name":"SMS CALpital","color":"#22d3ee","data":[1000000,1000000,null,null,null,null,null,1000000,1000000,1001800,988900,988900,null,null,990600,null,null,null,null,null,null,null,null,null,null,null,null,null,null,989917,1006360,1001651,1001651,1001651,1006331,1006331,1013951,1015806,1002488,1002488,997353,997353,1001448,1005874,1002844,990789,973676,978369,978369,980166,980891,978766,981671,981671,981671,981671,979987,970540,1001783,986809,973655,973655,973655,979828,977982,975994,975994,975994,975994,975994,980418,980418,912081,912081,912081]}],"returns":[{"name":"ATM Capital","ret":51.4,"color":"#22c55e"},{"name":"Krasch och Cash","ret":19.8,"color":"#22c55e"},{"name":"Spenderarna","ret":18,"color":"#22c55e"},{"name":"Bull & Bär ","ret":6.5,"color":"#22c55e"},{"name":"HoljeHajarna","ret":2.1,"color":"#22c55e"},{"name":"Hjort är 🦌 ","ret":-3.9,"color":"#ef4444"},{"name":"SMS CALpital","ret":-8.8,"color":"#ef4444"}],"stocks":[{"label":"SIVE.ST","count":27},{"label":"AMD","count":15},{"label":"MINEST.ST","count":14},{"label":"NVDA","count":11},{"label":"SWED-A.ST","count":11},{"label":"VOLV-B.ST","count":9},{"label":"KINV-B.ST","count":9},{"label":"PLTR","count":8},{"label":"EQT.ST","count":6},{"label":"MASHUP.ST","count":6},{"label":"SKIS-B.ST","count":6},{"label":"TSLA","count":6}]};</script>
+<script>
+(function(){
+  Chart.defaults.font.family = 'Inter';
+  Chart.defaults.color = '#7c8aa3';
+  var grid = 'rgba(148,163,184,0.08)';
+  new Chart(document.getElementById('raceChart'), {
+    type:'line',
+    data:{ labels: CHART.dates, datasets: CHART.race.map(function(s){ return {
+      label:s.name, data:s.data, borderColor:s.color, backgroundColor:s.color,
+      borderWidth:2.5, pointRadius:0, pointHoverRadius:4, tension:0.25, spanGaps:true }; }) },
+    options:{ responsive:true, maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+      plugins:{ legend:{labels:{color:'#cbd5e1',usePointStyle:true,boxWidth:8,padding:14}},
+        tooltip:{ callbacks:{ label:function(c){ return c.dataset.label+': '+new Intl.NumberFormat('sv-SE').format(c.parsed.y)+' kr'; } } } },
+      scales:{ x:{ ticks:{maxTicksLimit:9,callback:function(v){return CHART.dates[v].slice(5);}}, grid:{color:grid} },
+        y:{ ticks:{callback:function(v){return Math.round(v/1000)+'k';}}, grid:{color:grid} } } }
+  });
+  new Chart(document.getElementById('returnsChart'), {
+    type:'bar',
+    data:{ labels: CHART.returns.map(function(r){return r.name;}),
+      datasets:[{ data: CHART.returns.map(function(r){return r.ret;}), backgroundColor: CHART.returns.map(function(r){return r.color;}), borderRadius:6 }] },
+    options:{ indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}, tooltip:{callbacks:{label:function(c){return (c.parsed.x>=0?'+':'')+c.parsed.x+' %';}}}},
+      scales:{ x:{ticks:{callback:function(v){return v+'%';}},grid:{color:grid}}, y:{ticks:{color:'#cbd5e1'},grid:{display:false}} } }
+  });
+  new Chart(document.getElementById('stocksChart'), {
+    type:'bar',
+    data:{ labels: CHART.stocks.map(function(s){return s.label;}),
+      datasets:[{ data: CHART.stocks.map(function(s){return s.count;}), backgroundColor:'#2dd4bf', borderRadius:6 }] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+      scales:{ x:{ticks:{maxRotation:60,minRotation:45},grid:{display:false}}, y:{ticks:{precision:0},grid:{color:grid}} } }
+  });
+  var obs = new IntersectionObserver(function(es){ es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); obs.unobserve(e.target);} }); },{threshold:0.12});
+  document.querySelectorAll('.reveal').forEach(function(el){obs.observe(el);});
+  if(window.confetti){ setTimeout(function(){ confetti({particleCount:150,spread:80,startVelocity:42,origin:{y:0.3},colors:['#fbbf24','#2dd4bf','#60a5fa','#f472b6']}); },400); }
+})();
+</script>
 </body>
 </html>
